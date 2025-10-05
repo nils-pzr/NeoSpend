@@ -7,15 +7,17 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-type Props = {
+type BlogPostPageProps = {
     params: { slug: string };
 };
 
+// ⚙️ generateStaticParams
 export function generateStaticParams() {
     return posts.map((post) => ({ slug: post.slug }));
 }
 
-export function generateMetadata({ params }: Props) {
+// ⚙️ generateMetadata
+export async function generateMetadata({ params }: BlogPostPageProps) {
     const post = posts.find((p) => p.slug === params.slug);
     if (!post) return { title: 'Post not found' };
     return {
@@ -24,8 +26,8 @@ export function generateMetadata({ params }: Props) {
     };
 }
 
-// ⚡ Wichtig: kein "use client" hier oben!
-export default function BlogPostPage({ params }: Props) {
+// ⚡ Page Component (kein "use client")
+export default async function BlogPostPage({ params }: BlogPostPageProps) {
     const post = posts.find((p) => p.slug === params.slug);
     if (!post) return notFound();
 

@@ -5,6 +5,9 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY!)
 
+/* ===========================================================
+   📰 NEWSLETTER ANMELDUNG
+   =========================================================== */
 export async function subscribeToNewsletter(formData: FormData) {
     const email = formData.get('email')?.toString()
     if (!email) return { error: 'Please enter a valid email address.' }
@@ -32,7 +35,7 @@ export async function subscribeToNewsletter(formData: FormData) {
     // ======================================
     try {
         const { error: sendError } = await resend.emails.send({
-            from: 'NeoSpend <onboarding@resend.dev>', // wichtig: Standard-Absender
+            from: 'NeoSpend <onboarding@resend.dev>',
             to: email,
             subject: 'Willkommen bei NeoSpend 💸',
             html: `
@@ -87,7 +90,7 @@ export async function subscribeToNewsletter(formData: FormData) {
     // ======================================
     try {
         const { error: notifyError } = await resend.emails.send({
-            from: 'NeoSpend <onboarding@resend.dev>', // gleich halten!
+            from: 'NeoSpend <onboarding@resend.dev>',
             to: process.env.CONTACT_RECEIVER || 'neospend@gmail.com',
             subject: '🆕 Neuer Newsletter-Abonnent',
             html: `
@@ -138,4 +141,36 @@ export async function subscribeToNewsletter(formData: FormData) {
     }
 
     return { success: 'You have been successfully subscribed!' }
+}
+
+/* ===========================================================
+   💬 KONTAKTFORMULAR
+   =========================================================== */
+export async function sendEmailAction(values: { name: string; email: string; message: string }) {
+    try {
+        const { error } = await resend.emails.send({
+            from: 'NeoSpend Contact <onboarding@resend.dev>',
+            to: process.env.CONTACT_RECEIVER || 'neospend@gmail.com',
+            subject: `📩 Neue Nachricht von ${values.name}`,
+            html: `
+        <div style="font-family:Inter, sans-serif; line-height:1.6;">
+          <h2>Neue Kontaktanfrage</h2>
+          <p><strong>Name:</strong> ${values.name}</p>
+          <p><strong>Email:</strong> ${values.email}</p>
+          <p><strong>Nachricht:</strong></p>
+          <p>${values.message}</p>
+        </div>
+      `,
+        })
+
+        if (error) {
+            console.error('[Resend Contact Error]:', error)
+            return { error: 'Failed to send message. Please try again later.' }
+        }
+
+        return { data: 'Message sent successfully!' }
+    } catch (err) {
+        console.error('❌ Contact email failed:', err)
+        return { error: 'Unexpected error while sending email.' }
+    }
 }

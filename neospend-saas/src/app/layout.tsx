@@ -6,7 +6,7 @@ import { PropsWithChildren } from "react";
 import { siteConfig } from "@/lib/site-config";
 import { ThemeProvider } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
-import { Toaster } from "sonner"; // ✅ hinzugefügt
+import { Toaster } from "sonner";
 
 // === Fonts ===
 const geistSans = Geist({
@@ -46,8 +46,13 @@ const RootLayout = ({ children }: PropsWithChildren) => {
                 geistMono.variable
             )}
         >
-        {/* ThemeProvider sorgt für Light/Dark-Sync */}
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        {/* ✅ ThemeProvider: Light Mode als Standard */}
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="light"   // Standard-Theme
+            enableSystem={false}   // Kein System-Theme mehr
+            disableTransitionOnChange
+        >
             {children}
 
             {/* 🔔 Globaler Toast Renderer */}

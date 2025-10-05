@@ -24,10 +24,10 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen grid place-items-center bg-background text-foreground">
-            <div className="w-full max-w-md space-y-6 border border-border bg-card text-card-foreground rounded-lg p-8 shadow-md">
+            <div className="w-full max-w-md space-y-6 border border-border bg-card text-card-foreground rounded-xl p-8 shadow-lg">
                 <div className="text-center space-y-2">
-                    <h1 className="text-2xl font-semibold">Welcome to NeoSpend</h1>
-                    <p className="text-muted-foreground text-sm">
+                    <h1 className="text-2xl font-semibold tracking-tight">Welcome to NeoSpend</h1>
+                    <p className="text-sm text-muted-foreground">
                         Log in, register or reset your password
                     </p>
                 </div>
@@ -40,9 +40,35 @@ export default function LoginPage() {
                             default: {
                                 colors: {
                                     brand: 'hsl(var(--primary))',
-                                    brandAccent: 'hsl(var(--primary-foreground))',
+                                    brandAccent: 'hsl(var(--primary))',
+                                    brandButtonText: 'hsl(var(--primary-foreground))',
+
+                                    inputBackground: 'hsl(var(--card))',
+                                    inputText: 'hsl(var(--foreground))',
+                                    inputBorder: 'hsl(var(--border))',
+
+                                    messageText: 'hsl(var(--muted-foreground))',
+                                    messageBackground: 'transparent',
+                                },
+                                space: {
+                                    buttonPadding: '0.5rem 1rem',
+                                },
+                                fonts: {
+                                    bodyFontFamily: 'var(--font-sans)',
+                                    buttonFontFamily: 'var(--font-sans)',
+                                },
+                                radii: {
+                                    borderRadiusButton: 'var(--radius)',
+                                    inputBorderRadius: 'var(--radius)', // ✅ richtiger Property-Name
                                 },
                             },
+                        },
+                        className: {
+                            button:
+                                'bg-primary text-primary-foreground hover:bg-primary/90 font-medium rounded-md transition-colors duration-200',
+                            input:
+                                'border border-border rounded-md bg-background focus:ring-2 focus:ring-primary focus:outline-none',
+                            anchor: 'text-primary hover:underline',
                         },
                     }}
                     providers={[]}
@@ -52,7 +78,10 @@ export default function LoginPage() {
                 />
 
                 <div className="text-center text-sm">
-                    <Link href="/" className="underline text-muted-foreground hover:text-foreground">
+                    <Link
+                        href="/"
+                        className="underline text-muted-foreground hover:text-foreground"
+                    >
                         Back to homepage
                     </Link>
                 </div>

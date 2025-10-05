@@ -10,11 +10,9 @@ export default function Footer() {
     return (
         <footer className="not-prose font-sans text-[0.875rem] leading-normal text-muted-foreground">
             {/* Main Footer Section */}
-            <div className="max-w-[1200px] mx-auto px-6 py-20 grid items-start gap-x-28 lg:grid-cols-[2.8fr_1fr_1fr_1fr]">
-
+            <div className="max-w-[1200px] mx-auto px-6 py-20 grid items-start gap-y-12 gap-x-12 sm:grid-cols-2 lg:grid-cols-[2.8fr_1fr_1fr_1fr]">
                 {/* Branding + Newsletter + Socials */}
                 <div className="flex flex-col justify-between">
-                    {/* Newsletter + Text */}
                     <div className="space-y-8">
                         <div>
                             <h2 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -28,24 +26,24 @@ export default function Footer() {
                         {/* Newsletter Form */}
                         <form
                             onSubmit={(e) => e.preventDefault()}
-                            className="flex w-full max-w-lg items-center gap-2 mt-6"
+                            className="flex w-full max-w-sm items-center gap-2 mt-6"
                         >
                             <Input
                                 type="email"
                                 placeholder="Enter your email"
-                                className="h-11 bg-background border-border text-sm"
+                                className="h-10 bg-background border-border text-sm"
                                 required
                             />
                             <Button
                                 type="submit"
-                                className="h-11 px-6 bg-primary text-primary-foreground hover:opacity-90"
+                                className="h-10 px-4 bg-primary text-primary-foreground hover:opacity-90"
                             >
                                 Stay updated
                             </Button>
                         </form>
                     </div>
 
-                    {/* Social Icons (näher am Newsletter) */}
+                    {/* Social Icons */}
                     <div className="flex items-center mt-8 gap-[0.3rem]">
                         <Button
                             asChild
@@ -125,11 +123,11 @@ export default function Footer() {
                 </div>
 
                 {/* Resources */}
-                <div className="-ml-4">
+                <div>
                     <h3 className="font-semibold text-foreground mb-3">Resources</h3>
                     <ul className="space-y-1 text-sm text-muted-foreground">
                         <li>
-                            <Link href="/faq" className="hover:text-primary transition-colors">
+                            <Link href="/help" className="hover:text-primary transition-colors">
                                 Help Center
                             </Link>
                         </li>
@@ -142,9 +140,9 @@ export default function Footer() {
                 </div>
 
                 {/* Company */}
-                <div className="-ml-4">
-                    <h3 className="font-semibold text-foreground mb-3 text-left">Company</h3>
-                    <ul className="space-y-1 text-sm text-muted-foreground text-left">
+                <div>
+                    <h3 className="font-semibold text-foreground mb-3">Company</h3>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
                         <li>
                             <Link href="/about" className="hover:text-primary transition-colors">
                                 About
@@ -162,7 +160,7 @@ export default function Footer() {
                                 rel="noopener noreferrer"
                                 className="hover:text-primary transition-colors"
                             >
-                                Support me ☕
+                                Support me
                             </a>
                         </li>
                     </ul>
@@ -172,48 +170,46 @@ export default function Footer() {
             {/* Bottom Bar */}
             <div className="border-t border-border">
                 <div className="max-w-[1200px] mx-auto flex flex-col sm:flex-row items-center justify-between px-6 py-5 gap-4 text-[0.875rem] text-muted-foreground font-normal leading-normal tracking-tight font-sans">
-
-                    {/* Copyright + Made with love */}
-                    {/* Left side */}
+                    {/* Left */}
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-                        <p className="!text-[0.875rem] !leading-normal !font-normal !font-sans m-0">
+                        <p className="text-[0.875rem] leading-normal font-normal font-sans m-0">
                             © {new Date().getFullYear()} Nils Plützer. All rights reserved.
                         </p>
 
-                        <p className="!text-[0.875rem] !leading-normal !font-normal !font-sans m-0 flex items-center gap-1">
+                        <p className="text-[0.875rem] leading-normal font-normal font-sans m-0 flex items-center gap-1">
                             Made with
                             <motion.span
                                 className="inline-flex items-center justify-center"
                                 whileHover={{ scale: 1.15, rotate: 8 }}
-                                transition={{ type: 'spring', stiffness: 300 }}
+                                transition={{ type: "spring", stiffness: 300 }}
                             >
                                 <Heart className="h-4 w-4 text-primary" />
                             </motion.span>
                             by
                             <Link
                                 href="https://nils-pzr.eu"
-                                className="hover:underline underline-offset-4 text-foreground font-normal"
+                                className="hover:underline underline-offset-4 font-normal text-inherit"
                             >
                                 Nils Plützer
                             </Link>
                         </p>
                     </div>
 
-                    {/* Right side */}
+                    {/* Right */}
                     <div className="flex flex-wrap items-center justify-center gap-4">
                         <div className="flex items-center gap-2 border border-border rounded-full px-3 py-1 text-xs text-muted-foreground">
                             <div className="w-2 h-2 bg-green-500 rounded-full" />
                             All systems operational
                         </div>
 
-                        <Link href="/privacy-policy" className="hover:text-primary transition-colors">
+                        <Link href="/privacy" className="hover:text-primary transition-colors">
                             Privacy
                         </Link>
                         <Link href="/terms" className="hover:text-primary transition-colors">
                             Terms
                         </Link>
                         <Link href="/legal-notice" className="hover:text-primary transition-colors">
-                            Imprint
+                            Legal Notice
                         </Link>
                     </div>
                 </div>

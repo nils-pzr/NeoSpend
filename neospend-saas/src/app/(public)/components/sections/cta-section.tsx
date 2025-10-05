@@ -18,7 +18,7 @@ export default function CTASection() {
                 Join thousands of users managing their finances with NeoSpend.
             </p>
             <Button asChild size="lg">
-                <Link href="/login">Start Free Today</Link>
+                <Link href="/pricing">Start Free Today</Link>
             </Button>
         </motion.section>
     );

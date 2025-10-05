@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
     NavigationMenu,
@@ -13,15 +14,15 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import Link from "next/link";
-import Logo from "@/components/navbar-components/logo";
 import ThemeToggle from "@/components/navbar-components/theme-toggle";
 
-// Navigation links (desktop & mobile)
 const navigationLinks = [
     { href: "/", label: "Home" },
     { href: "/features", label: "Features" },
     { href: "/pricing", label: "Pricing" },
     { href: "/about", label: "About" },
+    { href: "/blog", label: "Blog" },
+    { href: "/help", label: "Help" },
     { href: "/contact", label: "Contact" },
 ];
 
@@ -30,7 +31,7 @@ export default function Navbar() {
         <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50 px-4 md:px-6">
             <div className="flex h-16 items-center justify-between gap-4">
                 {/* Left side (Logo + Mobile Nav) */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-5">
                     {/* Mobile menu trigger */}
                     <Popover>
                         <PopoverTrigger asChild>
@@ -86,9 +87,29 @@ export default function Navbar() {
                         </PopoverContent>
                     </Popover>
 
-                    {/* Logo */}
-                    <Link href="/" className="flex items-center gap-2 text-primary hover:text-primary/90">
-                        <Logo />
+                    {/* Logo + Schriftzug */}
+                    <Link
+                        href="/"
+                        className="flex items-center gap-3 hover:opacity-95 transition-opacity"
+                    >
+                        <Image
+                            src="/NeoSpend_Logo.svg"
+                            alt="NeoSpend Logo"
+                            width={200}
+                            height={60}
+                            priority
+                            className="h-12 w-auto object-contain
+                         contrast-[1.45]
+                         brightness-[1.2]
+                         saturate-[1.3]
+                         drop-shadow-[0_0_6px_rgba(0,0,0,0.25)]
+                         dark:brightness-[1.25]
+                         dark:contrast-[1.4]
+                         dark:drop-shadow-[0_0_6px_rgba(255,255,255,0.25)]"
+                        />
+                        <span className="text-primary text-2xl font-semibold tracking-tight leading-none select-none">
+              NeoSpend
+            </span>
                     </Link>
 
                     {/* Desktop Navigation */}

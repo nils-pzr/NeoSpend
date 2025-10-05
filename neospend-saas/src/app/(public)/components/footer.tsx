@@ -5,8 +5,20 @@ import { Github, Linkedin, Mail, Globe, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
+import { useState, useTransition, useEffect } from "react";
+import { subscribeToNewsletter } from "@/actions/subscribe";
 
 export default function Footer() {
+    const [message, setMessage] = useState("");
+    const [isPending, startTransition] = useTransition();
+
+    // 🕒 Nachricht nach 5 Sekunden ausblenden
+    useEffect(() => {
+        if (!message) return;
+        const timer = setTimeout(() => setMessage(""), 5000);
+        return () => clearTimeout(timer);
+    }, [message]);
+
     return (
         <footer className="not-prose font-sans text-[0.875rem] leading-normal text-muted-foreground">
             {/* Main Footer Section */}
@@ -25,11 +37,17 @@ export default function Footer() {
 
                         {/* Newsletter Form */}
                         <form
-                            onSubmit={(e) => e.preventDefault()}
+                            action={(formData) =>
+                                startTransition(async () => {
+                                    const result = await subscribeToNewsletter(formData);
+                                    setMessage(result.error || result.success || "");
+                                })
+                            }
                             className="flex w-full max-w-sm items-center gap-2 mt-6"
                         >
                             <Input
                                 type="email"
+                                name="email"
                                 placeholder="Enter your email"
                                 className="h-10 bg-background border-border text-sm focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
                                 required
@@ -37,10 +55,29 @@ export default function Footer() {
                             <Button
                                 type="submit"
                                 className="h-10 px-4 bg-primary text-primary-foreground hover:opacity-90"
+                                disabled={isPending}
                             >
-                                Stay updated
+                                {isPending ? "Subscribing..." : "Stay updated"}
                             </Button>
                         </form>
+
+                        {/* Message (mit Fade-Out) */}
+                        {message && (
+                            <motion.p
+                                key={message}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.5 }}
+                                className={`text-sm mt-2 ${
+                                    message.startsWith("You have")
+                                        ? "text-green-500"
+                                        : "text-red-500"
+                                }`}
+                            >
+                                {message}
+                            </motion.p>
+                        )}
                     </div>
 
                     {/* Social Icons */}
@@ -176,7 +213,6 @@ export default function Footer() {
                             © {new Date().getFullYear()} Nils Plützer. All rights reserved.
                         </p>
 
-                        {/* Separator */}
                         <span className="text-muted-foreground mx-1 select-none">|</span>
 
                         <p className="text-[0.875rem] leading-normal font-normal font-sans m-0 flex items-center gap-1">

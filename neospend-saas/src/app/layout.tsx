@@ -6,6 +6,7 @@ import { PropsWithChildren } from "react";
 import { siteConfig } from "@/lib/site-config";
 import { ThemeProvider } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
+import { Toaster } from "sonner"; // ✅ hinzugefügt
 
 // === Fonts ===
 const geistSans = Geist({
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
 // === Layout ===
 const RootLayout = ({ children }: PropsWithChildren) => {
     return (
-        <html lang="en" suppressHydrationWarning>
+        <html lang="de" suppressHydrationWarning>
         <body
             className={cn(
                 "min-h-screen bg-background text-foreground antialiased transition-colors",
@@ -48,6 +49,20 @@ const RootLayout = ({ children }: PropsWithChildren) => {
         {/* ThemeProvider sorgt für Light/Dark-Sync */}
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {children}
+
+            {/* 🔔 Globaler Toast Renderer */}
+            <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                toastOptions={{
+                    classNames: {
+                        toast: "bg-background border border-border shadow-md",
+                        description: "text-muted-foreground",
+                        actionButton: "bg-primary text-white",
+                    },
+                }}
+            />
         </ThemeProvider>
         </body>
         </html>

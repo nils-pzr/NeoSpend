@@ -23,13 +23,13 @@ export default function PricingTable() {
             name: "Pro",
             price: "€5",
             period: "/mo",
-            description: "Ideal for growing users and teams",
+            description: "Ideal for growing users and organizations",
             features: [
                 "✔ Unlimited transactions",
                 "✔ Advanced insights & charts",
                 "✔ Priority email support",
             ],
-            button: { label: "Upgrade Now", href: "/login" },
+            button: { label: "Upgrade Now", href: "/" },
             popular: true,
         },
     ];

@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Github, Linkedin, Mail, Globe } from "lucide-react";
+import { Github, Linkedin, Mail, Globe, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion } from "framer-motion";
 
 export default function Footer() {
     return (
-        <footer className="border-t border-border bg-card text-card-foreground mt-24">
+        <footer className="not-prose font-sans text-[0.875rem] leading-normal text-muted-foreground">
             {/* Main Footer Section */}
             <div className="max-w-[1200px] mx-auto px-6 py-20 grid items-start gap-x-28 lg:grid-cols-[2.8fr_1fr_1fr_1fr]">
 
@@ -51,7 +51,7 @@ export default function Footer() {
                             asChild
                             size="icon"
                             variant="outline"
-                            className="rounded-full hover:bg-primary/10 mr-2"
+                            className="rounded-full hover:bg-primary/10"
                         >
                             <Link href="mailto:business.nilspzr@gmail.com" aria-label="Mail">
                                 <Mail className="h-4 w-4" />
@@ -171,24 +171,28 @@ export default function Footer() {
 
             {/* Bottom Bar */}
             <div className="border-t border-border">
-                <div className="max-w-[1200px] mx-auto flex flex-col sm:flex-row items-center justify-between px-6 py-5 gap-4 text-sm text-muted-foreground">
+                <div className="max-w-[1200px] mx-auto flex flex-col sm:flex-row items-center justify-between px-6 py-5 gap-4 text-[0.875rem] text-muted-foreground font-normal leading-normal tracking-tight font-sans">
+
                     {/* Copyright + Made with love */}
+                    {/* Left side */}
                     <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-                        <p>© {new Date().getFullYear()} Nils Plützer. All rights reserved.</p>
-                        <span className="text-muted-foreground">|</span>
-                        <p className="flex items-center gap-1">
-                            Made with{" "}
+                        <p className="!text-[0.875rem] !leading-normal !font-normal !font-sans m-0">
+                            © {new Date().getFullYear()} Nils Plützer. All rights reserved.
+                        </p>
+
+                        <p className="!text-[0.875rem] !leading-normal !font-normal !font-sans m-0 flex items-center gap-1">
+                            Made with
                             <motion.span
-                                className="inline-block text-primary"
-                                whileHover={{ scale: 1.3, rotate: 15 }}
-                                transition={{ type: "spring", stiffness: 300 }}
+                                className="inline-flex items-center justify-center"
+                                whileHover={{ scale: 1.15, rotate: 8 }}
+                                transition={{ type: 'spring', stiffness: 300 }}
                             >
-                                ♥
-                            </motion.span>{" "}
-                            by{" "}
+                                <Heart className="h-4 w-4 text-primary" />
+                            </motion.span>
+                            by
                             <Link
-                                href="/"
-                                className="hover:underline underline-offset-4 text-foreground font-medium"
+                                href="https://nils-pzr.eu"
+                                className="hover:underline underline-offset-4 text-foreground font-normal"
                             >
                                 Nils Plützer
                             </Link>

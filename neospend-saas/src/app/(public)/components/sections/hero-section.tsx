@@ -22,7 +22,7 @@ export default function HeroSection() {
                 </p>
                 <div className="flex gap-4 justify-center md:justify-start">
                     <Button asChild size="lg">
-                        <Link href="/login">Get Started Free</Link>
+                        <Link href="/pricing">Get Started Free</Link>
                     </Button>
                     <Button asChild size="lg" variant="outline">
                         <Link href="/features">Learn More</Link>

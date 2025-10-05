@@ -31,7 +31,7 @@ export default function Footer() {
                             <Input
                                 type="email"
                                 placeholder="Enter your email"
-                                className="h-10 bg-background border-border text-sm"
+                                className="h-10 bg-background border-border text-sm focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
                                 required
                             />
                             <Button
@@ -175,6 +175,9 @@ export default function Footer() {
                         <p className="text-[0.875rem] leading-normal font-normal font-sans m-0">
                             © {new Date().getFullYear()} Nils Plützer. All rights reserved.
                         </p>
+
+                        {/* Separator */}
+                        <span className="text-muted-foreground mx-1 select-none">|</span>
 
                         <p className="text-[0.875rem] leading-normal font-normal font-sans m-0 flex items-center gap-1">
                             Made with

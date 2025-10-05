@@ -32,7 +32,7 @@ export default function HeroSection() {
 
             {/* Image / Illustration */}
             <motion.img
-                src="/illustrations/dashboard-preview.png"
+                src="/illustrations/dashboard-preview.jpg"
                 alt="NeoSpend dashboard preview"
                 className="w-full max-w-md rounded-xl shadow-xl border border-border"
                 initial={{ opacity: 0, scale: 0.95 }}

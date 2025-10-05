@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Playfair_Display, JetBrains_Mono } from "next/font/google";
 import "@/styles/globals.css";
 
 import { PropsWithChildren } from "react";
@@ -9,14 +9,25 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
 
 // === Fonts ===
-const geistSans = Geist({
-    variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+    variable: "--font-sans",
     subsets: ["latin"],
+    weight: ["400", "500", "600", "700"],
+    display: "swap",
 });
 
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
+const playfairDisplay = Playfair_Display({
+    variable: "--font-heading",
     subsets: ["latin"],
+    weight: ["500", "600", "700"],
+    display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+    variable: "--font-mono",
+    subsets: ["latin"],
+    weight: ["400", "500", "600", "700"],
+    display: "swap",
 });
 
 // === Metadata ===
@@ -38,19 +49,21 @@ export const metadata: Metadata = {
 // === Layout ===
 const RootLayout = ({ children }: PropsWithChildren) => {
     return (
-        <html lang="de" suppressHydrationWarning>
+        <html
+            lang="de"
+            suppressHydrationWarning
+            className={`${plusJakartaSans.variable} ${playfairDisplay.variable} ${jetbrainsMono.variable}`}
+        >
         <body
             className={cn(
-                "min-h-screen bg-background text-foreground antialiased transition-colors",
-                geistSans.variable,
-                geistMono.variable
+                "min-h-screen bg-background text-foreground antialiased transition-colors font-sans"
             )}
         >
         {/* ✅ ThemeProvider: Light Mode als Standard */}
         <ThemeProvider
             attribute="class"
-            defaultTheme="light"   // Standard-Theme
-            enableSystem={false}   // Kein System-Theme mehr
+            defaultTheme="light"
+            enableSystem={false}
             disableTransitionOnChange
         >
             {children}

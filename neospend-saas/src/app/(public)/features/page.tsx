@@ -122,7 +122,7 @@ export default function FeaturesPage() {
                         className="relative"
                     >
                         <img
-                            src="/dashboard-preview.png"
+                            src="/illustrations/dashboard-preview.jpg"
                             alt="NeoSpend Dashboard Preview"
                             className="rounded-2xl shadow-lg border border-border"
                         />

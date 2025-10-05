@@ -137,10 +137,10 @@ export default function ContactPage() {
                         <p>
                             Or reach us directly via email:{' '}
                             <a
-                                href="mailto:business@neospend.app"
+                                href="mailto:neospend@gmail.com"
                                 className="text-primary hover:underline"
                             >
-                                business@neospend.app
+                                neospend@gmail.com
                             </a>
                         </p>
                     </motion.div>

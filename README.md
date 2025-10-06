@@ -150,7 +150,7 @@ Built with care, modern design, and focus on performance and usability.
 ## 📜 License
 
 This project is licensed under the **MIT License**.  
-See the [LICENSE](./LICENSE) file for more details.
+See the [LICENSE](/neospend-saas/LICENSE) file for more details.
 
 ---
 

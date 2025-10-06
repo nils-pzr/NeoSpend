@@ -121,8 +121,6 @@ NeoSpend is fully optimized for **Vercel** deployment.
 
 ## 📸 Screenshots
 
-*(Add your app screenshots here)*
-
 ![Dashboard Screenshot](/neospend-saas/public/illustrations/dashboard-preview.jpg)  
 ![Login Page](public/screenshots/login.png)
 

@@ -1,5 +1,7 @@
 # 💸 NeoSpend
 
+[🌐 **Live App → neospend.de**](https://neospend.de)
+
 **NeoSpend** is a modern, minimalist SaaS application for personal finance management.  
 Track your income and expenses, categorize transactions, and gain insights into your financial habits through a clear and interactive dashboard.
 

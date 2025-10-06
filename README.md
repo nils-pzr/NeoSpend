@@ -57,7 +57,7 @@ neospend.saas/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/nils-pzr/neospend.git
+git clone https://github.com/nils-pzr/NeoSpend.git
 cd neospend
 ```
 

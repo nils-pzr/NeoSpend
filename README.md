@@ -123,7 +123,7 @@ NeoSpend is fully optimized for **Vercel** deployment.
 
 *(Add your app screenshots here)*
 
-![Dashboard Screenshot](public/screenshots/dashboard.png)  
+![Dashboard Screenshot](/neospend-saas/public/illustrations/dashboard-preview.jpg)  
 ![Login Page](public/screenshots/login.png)
 
 ---

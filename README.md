@@ -58,7 +58,7 @@ neospend.saas/
 
 ```bash
 git clone https://github.com/nils-pzr/NeoSpend.git
-cd neospend
+cd neospend-saas
 ```
 
 ### 2. Install dependencies

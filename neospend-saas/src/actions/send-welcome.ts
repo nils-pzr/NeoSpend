@@ -14,7 +14,7 @@ export async function sendWelcomeEmail(email: string) {
             subject: 'Welcome to NeoSpend 💸',
             replyTo: 'neospend@gmail.com',
             html: `
-      <html>
+      <html lang="en">
       <body style="margin:0;padding:0;background-color:#f8f8fb;font-family:Inter,Arial,sans-serif;color:#222;">
         <div style="max-width:520px;margin:40px auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.06);">
           <div style="background:linear-gradient(135deg,#6C63FF,#A491FF);color:white;text-align:center;padding:28px 20px;">

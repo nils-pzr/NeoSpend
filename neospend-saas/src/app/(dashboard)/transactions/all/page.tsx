@@ -127,7 +127,7 @@ export default function AllTransactionsPage() {
                     <div className="flex items-center gap-2">
                         <Filter className="h-4 w-4 text-muted-foreground" />
                         <Select value={filterType} onValueChange={(val: any) => setFilterType(val)}>
-                            <SelectTrigger className="w-[130px] focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                            <SelectTrigger className="w-[130px] focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
                                 <SelectValue placeholder="Type" />
                             </SelectTrigger>
                             <SelectContent>
@@ -139,7 +139,7 @@ export default function AllTransactionsPage() {
                     </div>
 
                     <Select value={filterCategory} onValueChange={(val) => setFilterCategory(val)}>
-                        <SelectTrigger className="w-[150px] focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                        <SelectTrigger className="w-[150px] focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
                             <SelectValue placeholder="Category" />
                         </SelectTrigger>
                         <SelectContent>

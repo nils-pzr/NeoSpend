@@ -38,19 +38,27 @@ export const metadata: Metadata = {
     },
     description: siteConfig.description,
     keywords: siteConfig.keywords,
+    metadataBase: siteConfig.metadataBase,
+    openGraph: siteConfig.openGraph,
+    twitter: siteConfig.twitter,
     robots: { index: true, follow: true },
+    authors: [{ name: siteConfig.author }],
     icons: {
         icon: "/favicon/favicon.ico",
         shortcut: "/favicon/favicon.png",
         apple: "/favicon/favicon.png",
     },
+    alternates: {
+        canonical: siteConfig.url,
+    },
+    category: "finance",
 };
 
 // === Layout ===
 const RootLayout = ({ children }: PropsWithChildren) => {
     return (
         <html
-            lang="de"
+            lang="en"
             suppressHydrationWarning
             className={`${plusJakartaSans.variable} ${playfairDisplay.variable} ${jetbrainsMono.variable}`}
         >

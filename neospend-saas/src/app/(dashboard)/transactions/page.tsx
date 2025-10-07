@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ListOrdered, Plus, Pencil, Trash2, FolderOpen } from "lucide-react";
+import {
+    ListOrdered,
+    Plus,
+    Pencil,
+    Trash2,
+    FolderOpen,
+    TrendingDown,
+    TrendingUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -25,6 +33,7 @@ import {
     SelectItem,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 interface Transaction {
     id: number;
@@ -54,19 +63,24 @@ export default function TransactionsPage() {
     const [newCategoryColor, setNewCategoryColor] = useState("#7546E8");
     const [loading, setLoading] = useState(true);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [openAddDialog, setOpenAddDialog] = useState(false);
 
     // 📦 Fetch transactions & categories
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
             const user = (await supabase.auth.getUser()).data.user;
-            if (!user) return;
+            if (!user) {
+                setLoading(false);
+                return;
+            }
 
             const { data: txData } = await supabase
                 .from("transactions")
                 .select("*")
                 .eq("user_id", user.id)
-                .order("date", { ascending: false });
+                .order("date", { ascending: false })
+                .limit(10);
 
             const { data: catData } = await supabase
                 .from("categories")
@@ -104,46 +118,44 @@ export default function TransactionsPage() {
         };
     }, []);
 
-    // ➕ Neue Kategorie hinzufügen
+    // ➕ Kategorie hinzufügen
     const handleAddCategory = async () => {
-        if (!newCategoryName.trim()) return;
+        if (!newCategoryName.trim()) return toast.error("Bitte Kategorienamen angeben.");
         const user = (await supabase.auth.getUser()).data.user;
-        if (!user) return;
+        if (!user) return toast.error("Bitte einloggen.");
 
         const { data, error } = await supabase
             .from("categories")
-            .insert([
-                { user_id: user.id, name: newCategoryName.trim(), color: newCategoryColor },
-            ])
+            .insert([{ user_id: user.id, name: newCategoryName.trim(), color: newCategoryColor }])
             .select();
 
         if (error) {
             console.error(error);
-            alert("Fehler beim Erstellen der Kategorie.");
-        } else if (data && data.length > 0) {
+            toast.error("Fehler beim Erstellen der Kategorie.");
+        } else if (data?.length) {
             setCategories((prev) => [...prev, data[0]]);
             setCategory(data[0].name);
             setNewCategoryName("");
+            toast.success("Kategorie erstellt.");
         }
     };
 
-    // ➕ Neue Transaktion hinzufügen
+    // ➕ Transaktion hinzufügen
     const handleAddTransaction = async () => {
-        if (!title || !amount) return;
+        const parsedAmount = Number.parseFloat(amount);
+        if (!title.trim()) return toast.error("Titel ist erforderlich.");
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+            return toast.error("Betrag muss > 0 sein.");
+        if (!type) return toast.error("Typ wählen.");
 
         const user = (await supabase.auth.getUser()).data.user;
-        if (!user) {
-            alert("Bitte einloggen, um Transaktionen hinzuzufügen.");
-            return;
-        }
-
-        const parsedAmount = Math.abs(parseFloat(amount));
+        if (!user) return toast.error("Bitte einloggen.");
 
         const { error } = await supabase.from("transactions").insert([
             {
                 user_id: user.id,
-                title,
-                amount: parsedAmount,
+                title: title.trim(),
+                amount: Math.abs(parsedAmount),
                 type,
                 category: category || "Allgemein",
                 date: new Date().toISOString().split("T")[0],
@@ -152,24 +164,28 @@ export default function TransactionsPage() {
 
         if (error) {
             console.error(error);
-            alert("Fehler beim Speichern.");
+            toast.error("Fehler beim Speichern.");
         } else {
             setTitle("");
             setAmount("");
             setCategory("");
+            setOpenAddDialog(false);
+            toast.success("Transaktion gespeichert.");
         }
     };
 
     // ✏️ Transaktion bearbeiten
     const handleEditTransaction = async () => {
         if (!editingTransaction) return;
-
-        const parsedAmount = Math.abs(parseFloat(editingTransaction.amount.toString()));
+        const parsedAmount = Math.abs(Number(editingTransaction.amount));
+        if (!editingTransaction.title.trim()) return toast.error("Titel ist erforderlich.");
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+            return toast.error("Betrag muss > 0 sein.");
 
         const { error } = await supabase
             .from("transactions")
             .update({
-                title: editingTransaction.title,
+                title: editingTransaction.title.trim(),
                 amount: parsedAmount,
                 type: editingTransaction.type,
                 category: editingTransaction.category,
@@ -178,9 +194,10 @@ export default function TransactionsPage() {
 
         if (error) {
             console.error(error);
-            alert("Fehler beim Aktualisieren.");
+            toast.error("Fehler beim Aktualisieren.");
         } else {
             setEditingTransaction(null);
+            toast.success("Transaktion aktualisiert.");
         }
     };
 
@@ -189,9 +206,13 @@ export default function TransactionsPage() {
         const { error } = await supabase.from("transactions").delete().eq("id", id);
         if (error) {
             console.error(error);
-            alert("Fehler beim Löschen.");
+            toast.error("Fehler beim Löschen.");
+        } else {
+            toast.success("Transaktion gelöscht.");
         }
     };
+
+    const lastFive = useMemo(() => transactions.slice(0, 5), [transactions]);
 
     return (
         <motion.div
@@ -212,122 +233,8 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Add + Categories Buttons */}
+                {/* Kategorien */}
                 <div className="flex items-center gap-2">
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button className="flex items-center gap-2">
-                                <Plus className="h-4 w-4" />
-                                Add Transaction
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle>Neue Transaktion hinzufügen</DialogTitle>
-                            </DialogHeader>
-
-                            <div className="space-y-4 py-2">
-                                {/* Titel */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="title">Titel</Label>
-                                    <Input
-                                        id="title"
-                                        placeholder="z. B. Einkauf bei Rewe"
-                                        value={title}
-                                        onChange={(e) => setTitle(e.target.value)}
-                                        className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
-                                    />
-                                </div>
-
-                                {/* Betrag */}
-                                <div className="space-y-2">
-                                    <Label htmlFor="amount">Betrag</Label>
-                                    <Input
-                                        id="amount"
-                                        type="number"
-                                        placeholder="z. B. 49.99"
-                                        value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
-                                        className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
-                                    />
-                                </div>
-
-                                {/* Typ */}
-                                <div className="space-y-2">
-                                    <Label>Typ</Label>
-                                    <Select
-                                        value={type}
-                                        onValueChange={(val: "income" | "expense") => setType(val)}
-                                    >
-                                        <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
-                                            <SelectValue placeholder="Typ wählen" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="income">Einnahme</SelectItem>
-                                            <SelectItem value="expense">Ausgabe</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {/* Kategorie */}
-                                <div className="space-y-2">
-                                    <Label>Kategorie</Label>
-                                    <Select value={category} onValueChange={setCategory}>
-                                        <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
-                                            <SelectValue placeholder="Kategorie wählen" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {categories.map((cat) => (
-                                                <SelectItem key={cat.id} value={cat.name}>
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="h-3 w-3 rounded-full"
-                                                            style={{ backgroundColor: cat.color }}
-                                                        />
-                                                        {cat.name}
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                            <Separator className="my-2" />
-                                            {/* Neue Kategorie erstellen */}
-                                            <div className="p-2 space-y-2">
-                                                <Label htmlFor="new-cat">+ Neue Kategorie</Label>
-                                                <Input
-                                                    id="new-cat"
-                                                    placeholder="Name der Kategorie"
-                                                    value={newCategoryName}
-                                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                                    className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
-                                                />
-                                                <div className="flex items-center gap-2">
-                                                    <Label>Farbe:</Label>
-                                                    <Input
-                                                        type="color"
-                                                        value={newCategoryColor}
-                                                        onChange={(e) => setNewCategoryColor(e.target.value)}
-                                                        className="w-10 h-8 p-0 border-none cursor-pointer"
-                                                    />
-                                                    <Button
-                                                        size="sm"
-                                                        variant="secondary"
-                                                        onClick={handleAddCategory}
-                                                    >
-                                                        Hinzufügen
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <Button className="w-full mt-3" onClick={handleAddTransaction}>
-                                    Speichern
-                                </Button>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Kategorien öffnen */}
                     <Link href="/categories">
                         <Button variant="outline" className="flex items-center gap-2">
                             <FolderOpen className="h-4 w-4" />
@@ -344,40 +251,53 @@ export default function TransactionsPage() {
                 </CardHeader>
                 <CardContent>
                     {loading ? (
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                            Lädt ...
-                        </p>
+                        <p className="text-sm text-muted-foreground text-center py-4">Lädt ...</p>
                     ) : transactions.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                             Noch keine Transaktionen vorhanden.
                         </p>
                     ) : (
                         <div className="flex flex-col divide-y divide-border">
-                            {transactions.map((t) => (
+                            {lastFive.map((t) => (
                                 <div
                                     key={t.id}
                                     className="flex items-center justify-between py-2 text-sm"
                                 >
-                                    <div className="flex flex-col">
-                                        <span className="font-medium text-foreground">{t.title}</span>
-                                        <span className="text-muted-foreground text-xs flex items-center gap-1">
-                                            <span
-                                                className="inline-block h-2.5 w-2.5 rounded-full"
-                                                style={{
-                                                    backgroundColor:
-                                                        categories.find((c) => c.name === t.category)?.color || "#999",
-                                                }}
-                                            />
-                                            {t.category}
-                                        </span>
+                                    <div className="flex items-center gap-3">
+                                        {t.type === "income" ? (
+                                            <TrendingUp className="h-4 w-4 text-green-500" />
+                                        ) : (
+                                            <TrendingDown className="h-4 w-4 text-red-500" />
+                                        )}
+                                        <div className="flex flex-col">
+                                            <span className="font-medium text-foreground">
+                                                {t.title}
+                                            </span>
+                                            <span className="text-muted-foreground text-xs flex items-center gap-1">
+                                                <span
+                                                    className="inline-block h-2.5 w-2.5 rounded-full"
+                                                    style={{
+                                                        backgroundColor:
+                                                            categories.find(
+                                                                (c) => c.name === t.category
+                                                            )?.color || "#999",
+                                                    }}
+                                                />
+                                                {t.category} • {t.date}
+                                            </span>
+                                        </div>
                                     </div>
+
                                     <div className="flex items-center gap-3">
                                         <span
                                             className={`font-semibold ${
-                                                t.type === "expense" ? "text-red-500" : "text-green-500"
+                                                t.type === "expense"
+                                                    ? "text-red-500"
+                                                    : "text-green-500"
                                             }`}
                                         >
-                                            {t.type === "expense" ? "−" : "+"} {t.amount.toFixed(2)} €
+                                            {t.type === "expense" ? "−" : "+"}{" "}
+                                            {t.amount.toFixed(2)} €
                                         </span>
                                         <Button
                                             size="icon"
@@ -409,6 +329,125 @@ export default function TransactionsPage() {
                 </CardContent>
             </Card>
 
+            {/* Floating Action Button */}
+            <Dialog open={openAddDialog} onOpenChange={setOpenAddDialog}>
+                <DialogTrigger asChild>
+                    <button
+                        aria-label="Add Transaction"
+                        className="fixed bottom-6 right-6 z-40 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition"
+                    >
+                        <Plus className="h-6 w-6" />
+                    </button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Neue Transaktion hinzufügen</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+                        {/* Titel */}
+                        <div className="space-y-2">
+                            <Label htmlFor="title">Titel</Label>
+                            <Input
+                                id="title"
+                                placeholder="z. B. Einkauf bei Rewe"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
+                            />
+                        </div>
+
+                        {/* Betrag */}
+                        <div className="space-y-2">
+                            <Label htmlFor="amount">Betrag</Label>
+                            <Input
+                                id="amount"
+                                type="number"
+                                placeholder="z. B. 49.99"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
+                            />
+                        </div>
+
+                        {/* Typ */}
+                        <div className="space-y-2">
+                            <Label>Typ</Label>
+                            <Select
+                                value={type}
+                                onValueChange={(val: "income" | "expense") => setType(val)}
+                            >
+                                <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
+                                    <SelectValue placeholder="Typ wählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="income">Einnahme</SelectItem>
+                                    <SelectItem value="expense">Ausgabe</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Kategorie */}
+                        <div className="space-y-2">
+                            <Label>Kategorie</Label>
+                            <Select value={category} onValueChange={setCategory}>
+                                <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
+                                    <SelectValue placeholder="Kategorie wählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categories.map((cat) => (
+                                        <SelectItem key={cat.id} value={cat.name}>
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className="h-3 w-3 rounded-full"
+                                                    style={{ backgroundColor: cat.color }}
+                                                />
+                                                {cat.name}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                    <Separator className="my-2" />
+                                    <div className="p-2 space-y-2">
+                                        <Label htmlFor="new-cat">+ Neue Kategorie</Label>
+                                        <Input
+                                            id="new-cat"
+                                            placeholder="Name der Kategorie"
+                                            value={newCategoryName}
+                                            onChange={(e) =>
+                                                setNewCategoryName(e.target.value)
+                                            }
+                                            className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <Label>Farbe:</Label>
+                                            <Input
+                                                type="color"
+                                                value={newCategoryColor}
+                                                onChange={(e) =>
+                                                    setNewCategoryColor(e.target.value)
+                                                }
+                                                className="w-10 h-8 p-0 border-none cursor-pointer"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={handleAddCategory}
+                                            >
+                                                Hinzufügen
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <Button className="w-full mt-3" onClick={handleAddTransaction}>
+                            Speichern
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             {/* Edit Dialog */}
             <Dialog open={!!editingTransaction} onOpenChange={() => setEditingTransaction(null)}>
                 <DialogContent className="sm:max-w-md">
@@ -423,7 +462,10 @@ export default function TransactionsPage() {
                                     id="edit-title"
                                     value={editingTransaction.title}
                                     onChange={(e) =>
-                                        setEditingTransaction({ ...editingTransaction, title: e.target.value })
+                                        setEditingTransaction({
+                                            ...editingTransaction,
+                                            title: e.target.value,
+                                        })
                                     }
                                     className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
                                 />
@@ -437,7 +479,8 @@ export default function TransactionsPage() {
                                     onChange={(e) =>
                                         setEditingTransaction({
                                             ...editingTransaction,
-                                            amount: Math.abs(parseFloat(e.target.value)) || 0,
+                                            amount:
+                                                Math.abs(parseFloat(e.target.value)) || 0,
                                         })
                                     }
                                     className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
@@ -448,7 +491,10 @@ export default function TransactionsPage() {
                                 <Select
                                     value={editingTransaction.type}
                                     onValueChange={(val: "income" | "expense") =>
-                                        setEditingTransaction({ ...editingTransaction, type: val })
+                                        setEditingTransaction({
+                                            ...editingTransaction,
+                                            type: val,
+                                        })
                                     }
                                 >
                                     <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
@@ -465,7 +511,10 @@ export default function TransactionsPage() {
                                 <Select
                                     value={editingTransaction.category}
                                     onValueChange={(val) =>
-                                        setEditingTransaction({ ...editingTransaction, category: val })
+                                        setEditingTransaction({
+                                            ...editingTransaction,
+                                            category: val,
+                                        })
                                     }
                                 >
                                     <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">

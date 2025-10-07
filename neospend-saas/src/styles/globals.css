@@ -206,25 +206,55 @@
 }
 
 
-/* 🌈 Global Focus & Outline Fix
-   Entfernt Standard-Browser-Outlines (orange/braun)
-   und ersetzt sie durch deinen var(--primary) Glow
-*/
+/* ======================================================
+   🌈 GLOBAL FOCUS & GLOW SYSTEM — NeoSpend
+   ======================================================
+   Purpose:
+   → unify all focus rings for inputs, buttons, selects, etc.
+   → improve accessibility and keyboard navigation
+   → match your primary brand glow (#7546E8)
+   ====================================================== */
+
+/* 🟣 Default (Light Mode) */
 *:focus-visible {
     outline: none !important;
-    box-shadow: 0 0 0 2px var(--primary), 0 0 8px var(--primary);
     border-color: var(--primary) !important;
-    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    box-shadow:
+            0 0 0 1.5px var(--primary),
+            0 0 8px rgba(117, 70, 232, 0.35);
+    transition:
+            box-shadow 0.15s ease,
+            border-color 0.15s ease,
+            background-color 0.15s ease;
 }
 
-/* Entfernt den Standard-Focus-Ring auf Buttons/Links */
+/* Remove default browser outlines */
 button:focus,
 a:focus,
 [role="button"]:focus {
     outline: none !important;
 }
 
-/* Für Dark Mode dezenter Glow */
+/* 🖤 Dark Mode — softer glow */
 .dark *:focus-visible {
-    box-shadow: 0 0 0 2px var(--primary), 0 0 10px rgba(117, 70, 232, 0.6);
+    box-shadow:
+            0 0 0 1.5px var(--primary),
+            0 0 12px rgba(117, 70, 232, 0.6);
+    border-color: var(--primary) !important;
+}
+
+/* Inputs & Selects — ensure ring doesn’t double */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: none !important;
+    box-shadow:
+            0 0 0 1.5px var(--primary),
+            0 0 8px rgba(117, 70, 232, 0.35);
+}
+
+/* Disabled elements – no glow */
+*:disabled:focus-visible {
+    box-shadow: none !important;
+    border-color: transparent !important;
 }

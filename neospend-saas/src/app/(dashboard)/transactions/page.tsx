@@ -259,7 +259,7 @@ export default function TransactionsPage() {
                                         value={type}
                                         onValueChange={(val: "income" | "expense") => setType(val)}
                                     >
-                                        <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                        <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
                                             <SelectValue placeholder="Typ wählen" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -273,7 +273,7 @@ export default function TransactionsPage() {
                                 <div className="space-y-2">
                                     <Label>Kategorie</Label>
                                     <Select value={category} onValueChange={setCategory}>
-                                        <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                        <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
                                             <SelectValue placeholder="Kategorie wählen" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -289,6 +289,7 @@ export default function TransactionsPage() {
                                                 </SelectItem>
                                             ))}
                                             <Separator className="my-2" />
+                                            {/* Neue Kategorie erstellen */}
                                             <div className="p-2 space-y-2">
                                                 <Label htmlFor="new-cat">+ Neue Kategorie</Label>
                                                 <Input
@@ -450,7 +451,7 @@ export default function TransactionsPage() {
                                         setEditingTransaction({ ...editingTransaction, type: val })
                                     }
                                 >
-                                    <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                    <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
                                         <SelectValue placeholder="Typ wählen" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -467,7 +468,7 @@ export default function TransactionsPage() {
                                         setEditingTransaction({ ...editingTransaction, category: val })
                                     }
                                 >
-                                    <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                    <SelectTrigger className="focus:outline-none focus-visible:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0">
                                         <SelectValue placeholder="Kategorie wählen" />
                                     </SelectTrigger>
                                     <SelectContent>

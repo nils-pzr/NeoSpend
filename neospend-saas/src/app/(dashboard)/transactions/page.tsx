@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ListOrdered, Plus, Pencil, Trash2 } from "lucide-react";
+import { ListOrdered, Plus, Pencil, Trash2, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -35,36 +36,52 @@ interface Transaction {
     date: string;
 }
 
+interface Category {
+    id: number;
+    user_id: string;
+    name: string;
+    color: string;
+}
+
 export default function TransactionsPage() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [title, setTitle] = useState("");
     const [amount, setAmount] = useState("");
     const [type, setType] = useState<"income" | "expense">("expense");
-    const [category, setCategory] = useState("Allgemein");
+    const [category, setCategory] = useState("");
+    const [newCategoryName, setNewCategoryName] = useState("");
+    const [newCategoryColor, setNewCategoryColor] = useState("#7546E8");
     const [loading, setLoading] = useState(true);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-    // 📦 Fetch transactions (nur eigene)
+    // 📦 Fetch transactions & categories
     useEffect(() => {
-        const fetchTransactions = async () => {
+        const fetchData = async () => {
             setLoading(true);
             const user = (await supabase.auth.getUser()).data.user;
             if (!user) return;
 
-            const { data, error } = await supabase
+            const { data: txData } = await supabase
                 .from("transactions")
                 .select("*")
                 .eq("user_id", user.id)
                 .order("date", { ascending: false });
 
-            if (error) console.error(error);
-            else setTransactions(data || []);
+            const { data: catData } = await supabase
+                .from("categories")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: true });
+
+            setTransactions(txData || []);
+            setCategories(catData || []);
             setLoading(false);
         };
 
-        fetchTransactions();
+        fetchData();
 
-        // 🔄 Realtime Subscription
+        // 🔄 Realtime updates
         const channel = supabase
             .channel("transactions-realtime")
             .on(
@@ -73,16 +90,11 @@ export default function TransactionsPage() {
                 (payload) => {
                     const newTx = payload.new as Transaction;
                     const oldTx = payload.old as Transaction;
-
-                    if (payload.eventType === "INSERT") {
-                        setTransactions((prev) => [newTx, ...prev]);
-                    } else if (payload.eventType === "UPDATE") {
-                        setTransactions((prev) =>
-                            prev.map((t) => (t.id === newTx.id ? newTx : t))
-                        );
-                    } else if (payload.eventType === "DELETE") {
-                        setTransactions((prev) => prev.filter((t) => t.id !== oldTx.id));
-                    }
+                    if (payload.eventType === "INSERT") setTransactions((p) => [newTx, ...p]);
+                    if (payload.eventType === "UPDATE")
+                        setTransactions((p) => p.map((t) => (t.id === newTx.id ? newTx : t)));
+                    if (payload.eventType === "DELETE")
+                        setTransactions((p) => p.filter((t) => t.id !== oldTx.id));
                 }
             )
             .subscribe();
@@ -92,7 +104,30 @@ export default function TransactionsPage() {
         };
     }, []);
 
-    // ➕ Add Transaction
+    // ➕ Neue Kategorie hinzufügen
+    const handleAddCategory = async () => {
+        if (!newCategoryName.trim()) return;
+        const user = (await supabase.auth.getUser()).data.user;
+        if (!user) return;
+
+        const { data, error } = await supabase
+            .from("categories")
+            .insert([
+                { user_id: user.id, name: newCategoryName.trim(), color: newCategoryColor },
+            ])
+            .select();
+
+        if (error) {
+            console.error(error);
+            alert("Fehler beim Erstellen der Kategorie.");
+        } else if (data && data.length > 0) {
+            setCategories((prev) => [...prev, data[0]]);
+            setCategory(data[0].name);
+            setNewCategoryName("");
+        }
+    };
+
+    // ➕ Neue Transaktion hinzufügen
     const handleAddTransaction = async () => {
         if (!title || !amount) return;
 
@@ -110,7 +145,7 @@ export default function TransactionsPage() {
                 title,
                 amount: parsedAmount,
                 type,
-                category,
+                category: category || "Allgemein",
                 date: new Date().toISOString().split("T")[0],
             },
         ]);
@@ -121,11 +156,11 @@ export default function TransactionsPage() {
         } else {
             setTitle("");
             setAmount("");
-            setCategory("Allgemein");
+            setCategory("");
         }
     };
 
-    // ✏️ Edit Transaction
+    // ✏️ Transaktion bearbeiten
     const handleEditTransaction = async () => {
         if (!editingTransaction) return;
 
@@ -149,7 +184,7 @@ export default function TransactionsPage() {
         }
     };
 
-    // 🗑️ Delete Transaction
+    // 🗑️ Transaktion löschen
     const handleDeleteTransaction = async (id: number) => {
         const { error } = await supabase.from("transactions").delete().eq("id", id);
         if (error) {
@@ -177,60 +212,128 @@ export default function TransactionsPage() {
                     </div>
                 </div>
 
-                {/* Add Button */}
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button className="flex items-center gap-2">
-                            <Plus className="h-4 w-4" />
-                            Add Transaction
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Neue Transaktion hinzufügen</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4 py-2">
-                            <div className="space-y-2">
-                                <Label htmlFor="title">Titel</Label>
-                                <Input
-                                    id="title"
-                                    placeholder="z. B. Einkauf bei Rewe"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="amount">Betrag</Label>
-                                <Input
-                                    id="amount"
-                                    type="number"
-                                    placeholder="z. B. 49.99"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Typ</Label>
-                                <Select
-                                    value={type}
-                                    onValueChange={(val: "income" | "expense") => setType(val)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Typ wählen" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="income">Einnahme</SelectItem>
-                                        <SelectItem value="expense">Ausgabe</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <Button className="w-full mt-3" onClick={handleAddTransaction}>
-                                Speichern
+                {/* Add + Categories Buttons */}
+                <div className="flex items-center gap-2">
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button className="flex items-center gap-2">
+                                <Plus className="h-4 w-4" />
+                                Add Transaction
                             </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Neue Transaktion hinzufügen</DialogTitle>
+                            </DialogHeader>
+
+                            <div className="space-y-4 py-2">
+                                {/* Titel */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="title">Titel</Label>
+                                    <Input
+                                        id="title"
+                                        placeholder="z. B. Einkauf bei Rewe"
+                                        value={title}
+                                        onChange={(e) => setTitle(e.target.value)}
+                                        className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
+                                    />
+                                </div>
+
+                                {/* Betrag */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="amount">Betrag</Label>
+                                    <Input
+                                        id="amount"
+                                        type="number"
+                                        placeholder="z. B. 49.99"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
+                                    />
+                                </div>
+
+                                {/* Typ */}
+                                <div className="space-y-2">
+                                    <Label>Typ</Label>
+                                    <Select
+                                        value={type}
+                                        onValueChange={(val: "income" | "expense") => setType(val)}
+                                    >
+                                        <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                            <SelectValue placeholder="Typ wählen" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="income">Einnahme</SelectItem>
+                                            <SelectItem value="expense">Ausgabe</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Kategorie */}
+                                <div className="space-y-2">
+                                    <Label>Kategorie</Label>
+                                    <Select value={category} onValueChange={setCategory}>
+                                        <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                            <SelectValue placeholder="Kategorie wählen" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {categories.map((cat) => (
+                                                <SelectItem key={cat.id} value={cat.name}>
+                                                    <div className="flex items-center gap-2">
+                                                        <div
+                                                            className="h-3 w-3 rounded-full"
+                                                            style={{ backgroundColor: cat.color }}
+                                                        />
+                                                        {cat.name}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                            <Separator className="my-2" />
+                                            <div className="p-2 space-y-2">
+                                                <Label htmlFor="new-cat">+ Neue Kategorie</Label>
+                                                <Input
+                                                    id="new-cat"
+                                                    placeholder="Name der Kategorie"
+                                                    value={newCategoryName}
+                                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                                    className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
+                                                />
+                                                <div className="flex items-center gap-2">
+                                                    <Label>Farbe:</Label>
+                                                    <Input
+                                                        type="color"
+                                                        value={newCategoryColor}
+                                                        onChange={(e) => setNewCategoryColor(e.target.value)}
+                                                        className="w-10 h-8 p-0 border-none cursor-pointer"
+                                                    />
+                                                    <Button
+                                                        size="sm"
+                                                        variant="secondary"
+                                                        onClick={handleAddCategory}
+                                                    >
+                                                        Hinzufügen
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <Button className="w-full mt-3" onClick={handleAddTransaction}>
+                                    Speichern
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
+                    {/* Kategorien öffnen */}
+                    <Link href="/categories">
+                        <Button variant="outline" className="flex items-center gap-2">
+                            <FolderOpen className="h-4 w-4" />
+                            Kategorien verwalten
+                        </Button>
+                    </Link>
+                </div>
             </header>
 
             {/* Card mit Transaktionen */}
@@ -256,16 +359,25 @@ export default function TransactionsPage() {
                                 >
                                     <div className="flex flex-col">
                                         <span className="font-medium text-foreground">{t.title}</span>
-                                        <span className="text-muted-foreground text-xs">{t.category}</span>
+                                        <span className="text-muted-foreground text-xs flex items-center gap-1">
+                                            <span
+                                                className="inline-block h-2.5 w-2.5 rounded-full"
+                                                style={{
+                                                    backgroundColor:
+                                                        categories.find((c) => c.name === t.category)?.color || "#999",
+                                                }}
+                                            />
+                                            {t.category}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-3">
-                    <span
-                        className={`font-semibold ${
-                            t.type === "expense" ? "text-red-500" : "text-green-500"
-                        }`}
-                    >
-                      {t.type === "expense" ? "−" : "+"} {t.amount.toFixed(2)} €
-                    </span>
+                                        <span
+                                            className={`font-semibold ${
+                                                t.type === "expense" ? "text-red-500" : "text-green-500"
+                                            }`}
+                                        >
+                                            {t.type === "expense" ? "−" : "+"} {t.amount.toFixed(2)} €
+                                        </span>
                                         <Button
                                             size="icon"
                                             variant="ghost"
@@ -288,9 +400,11 @@ export default function TransactionsPage() {
 
                     <Separator className="my-4" />
 
-                    <Button variant="secondary" className="w-full">
-                        Alle Transaktionen anzeigen
-                    </Button>
+                    <Link href="/transactions/all">
+                        <Button variant="secondary" className="w-full">
+                            Alle Transaktionen anzeigen
+                        </Button>
+                    </Link>
                 </CardContent>
             </Card>
 
@@ -310,6 +424,7 @@ export default function TransactionsPage() {
                                     onChange={(e) =>
                                         setEditingTransaction({ ...editingTransaction, title: e.target.value })
                                     }
+                                    className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -324,6 +439,7 @@ export default function TransactionsPage() {
                                             amount: Math.abs(parseFloat(e.target.value)) || 0,
                                         })
                                     }
+                                    className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -334,12 +450,38 @@ export default function TransactionsPage() {
                                         setEditingTransaction({ ...editingTransaction, type: val })
                                     }
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
                                         <SelectValue placeholder="Typ wählen" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="income">Einnahme</SelectItem>
                                         <SelectItem value="expense">Ausgabe</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Kategorie</Label>
+                                <Select
+                                    value={editingTransaction.category}
+                                    onValueChange={(val) =>
+                                        setEditingTransaction({ ...editingTransaction, category: val })
+                                    }
+                                >
+                                    <SelectTrigger className="focus-visible:ring-[var(--primary)] focus-visible:border-[var(--primary)]">
+                                        <SelectValue placeholder="Kategorie wählen" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {categories.map((cat) => (
+                                            <SelectItem key={cat.id} value={cat.name}>
+                                                <div className="flex items-center gap-2">
+                                                    <div
+                                                        className="h-3 w-3 rounded-full"
+                                                        style={{ backgroundColor: cat.color }}
+                                                    />
+                                                    {cat.name}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>

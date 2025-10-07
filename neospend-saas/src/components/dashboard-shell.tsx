@@ -74,7 +74,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                         <form action="/api/logout" method="post">
                             <button
                                 type="submit"
-                                className="text-sm text-destructive hover:text-destructive-foreground transition-colors"
+                                className="text-sm text-red-500 hover:text-red-600 hover:underline underline-offset-4 transition-all"
                             >
                                 Logout
                             </button>

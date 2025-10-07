@@ -204,3 +204,27 @@
         @apply bg-background text-foreground;
     }
 }
+
+
+/* 🌈 Global Focus & Outline Fix
+   Entfernt Standard-Browser-Outlines (orange/braun)
+   und ersetzt sie durch deinen var(--primary) Glow
+*/
+*:focus-visible {
+    outline: none !important;
+    box-shadow: 0 0 0 2px var(--primary), 0 0 8px var(--primary);
+    border-color: var(--primary) !important;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/* Entfernt den Standard-Focus-Ring auf Buttons/Links */
+button:focus,
+a:focus,
+[role="button"]:focus {
+    outline: none !important;
+}
+
+/* Für Dark Mode dezenter Glow */
+.dark *:focus-visible {
+    box-shadow: 0 0 0 2px var(--primary), 0 0 10px rgba(117, 70, 232, 0.6);
+}

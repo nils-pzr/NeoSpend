@@ -28,7 +28,7 @@ export async function sendWelcomeEmail(email: string) {
               Thanks for signing up! You can now explore your dashboard and start managing your finances smarter.
             </p>
             <div style="text-align:center;margin:28px 0;">
-              <a href="https://app.neospend.de/dashboard" 
+              <a href="https://neospend.de/dashboard" 
                  style="background:#7546E8;color:white;padding:10px 22px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:500;">
                  Go to Dashboard
               </a>

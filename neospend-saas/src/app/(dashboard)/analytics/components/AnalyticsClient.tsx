@@ -13,11 +13,15 @@ import ChartCard from './Charts/ChartCard';
 import PieCategory from './Charts/PieCategory';
 import LineTrend from './Charts/LineTrend';
 import BarCompare from './Charts/BarCompare';
+import TopCategories from './Charts/TopCategories';
+import DailyTrend from './Charts/DailyTrend';
 
 type SummaryRow = { total_income: number; total_expense: number; balance: number };
 export type TrendPoint = { month: string; income: number; expense: number };
 
-// Fallback-Daterange wenn Filter leer sind (verhindert NULL → leere Resultsets)
+type DayData = { date: string; income: number; expense: number };
+
+// Fallback-Daterange
 const FALLBACK_FROM = '1900-01-01';
 const FALLBACK_TO = () => {
     const d = new Date();
@@ -36,6 +40,7 @@ export default function AnalyticsClient({ uid }: { uid: string | null }) {
     const [summary, setSummary] = useState<SummaryRow | null>(null);
     const [monthly, setMonthly] = useState<TrendPoint[]>([]);
     const [pieData, setPieData] = useState<Array<{ name: string; value: number; color?: string }>>([]);
+    const [daily, setDaily] = useState<DayData[]>([]);
 
     useEffect(() => {
         let mounted = true;
@@ -45,6 +50,7 @@ export default function AnalyticsClient({ uid }: { uid: string | null }) {
                 setSummary(null);
                 setMonthly([]);
                 setPieData([]);
+                setDaily([]);
                 setLoading(false);
                 return;
             }
@@ -56,12 +62,18 @@ export default function AnalyticsClient({ uid }: { uid: string | null }) {
             const to_date = filters.to?.trim() ? filters.to : FALLBACK_TO();
 
             try {
-                const [sumRes, trendRes, pieRes] = await Promise.all([
-                    // Diese beiden nutzen bei dir noch die alte Signatur mit uid – passt:
+                const [sumRes, trendRes, pieRes, txRes] = await Promise.all([
                     supabase.rpc('get_summary', { uid, from_date, to_date }),
                     supabase.rpc('get_monthly_trend', { uid, from_date, to_date }),
-                    // ⬇️ neue Function: nutzt auth.uid() – KEIN uid-Argument!
                     supabase.rpc('get_category_spending_with_color', { from_date, to_date }),
+                    // tägliche Daten aus transactions (letzte 30 Tage)
+                    supabase
+                        .from('transactions')
+                        .select('date, amount, type')
+                        .eq('user_id', uid)
+                        .gte('date', from_date)
+                        .lte('date', to_date)
+                        .order('date', { ascending: true }),
                 ]);
 
                 if (!mounted) return;
@@ -69,6 +81,7 @@ export default function AnalyticsClient({ uid }: { uid: string | null }) {
                 if (sumRes.error) throw sumRes.error;
                 if (trendRes.error) throw trendRes.error;
                 if (pieRes.error) throw pieRes.error;
+                if (txRes.error) throw txRes.error;
 
                 const s = sumRes.data?.[0] ?? { total_income: 0, total_expense: 0, balance: 0 };
                 setSummary({
@@ -92,12 +105,27 @@ export default function AnalyticsClient({ uid }: { uid: string | null }) {
                         color: r.color ? String(r.color) : undefined,
                     })),
                 );
+
+                // Daily aggregation (lokal)
+                const map = new Map<string, { income: number; expense: number }>();
+                (txRes.data ?? []).forEach((t: any) => {
+                    const d = String(t.date); // already yyyy-mm-dd
+                    const cur = map.get(d) ?? { income: 0, expense: 0 };
+                    if (t.type === 'income') cur.income += Number(t.amount || 0);
+                    else if (t.type === 'expense') cur.expense += Number(t.amount || 0);
+                    map.set(d, cur);
+                });
+                const days = Array.from(map.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([date, v]) => ({ date, income: v.income, expense: v.expense }));
+                setDaily(days);
             } catch (e: any) {
                 console.error('[analytics rpc error]', e);
                 setError({ message: e?.message ?? 'Failed to load analytics' });
                 setSummary(null);
                 setMonthly([]);
                 setPieData([]);
+                setDaily([]);
             } finally {
                 if (mounted) setLoading(false);
             }
@@ -137,6 +165,20 @@ export default function AnalyticsClient({ uid }: { uid: string | null }) {
 
                 <ChartCard title="Income vs Expenses by Month" subtitle="Monthly totals">
                     <BarCompare data={monthly} loading={loading} />
+                </ChartCard>
+
+                <ChartCard title="Top Categories" subtitle="Top 5 spending categories">
+                    <TopCategories
+                        data={pieData.map((p) => ({
+                            category: p.name,
+                            total: p.value,
+                            color: p.color,
+                        }))}
+                    />
+                </ChartCard>
+
+                <ChartCard title="Daily Trend (last 30 days)" subtitle="Short-term activity">
+                    <DailyTrend data={daily} />
                 </ChartCard>
 
                 <ChartCard className="lg:col-span-2" title="Trend Over Time" subtitle="Cumulative net balance">

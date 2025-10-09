@@ -258,3 +258,14 @@ textarea:focus-visible {
     box-shadow: none !important;
     border-color: transparent !important;
 }
+
+/* Entfernt störende Klick-Borders in Charts, Cards etc. */
+svg:focus,
+path:focus,
+rect:focus,
+circle:focus,
+.recharts-wrapper *:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+}

@@ -1,4 +1,3 @@
-// src/app/(dashboard)/budgeting/BudgetingClient.tsx
 "use client";
 
 import React from "react";
@@ -6,14 +5,25 @@ import MonthlyOverview from "./components/MonthlyOverview";
 import BudgetCard from "./components/BudgetCard";
 import CreateBudget from "./components/CreateBudget";
 import { getCurrentMonthKey } from "./utils";
-import { createBudgetAction, updateBudgetAction, deleteBudgetAction, upsertMonthlyBudgetAction } from "./actions";
+import {
+    createBudgetAction,
+    updateBudgetAction,
+    deleteBudgetAction,
+} from "./actions";
 import { useRouter } from "next/navigation";
 
 type Category = { id: string; name: string };
-type Transaction = { id: string; categoryName: string | null; amount: number; type: "expense" | "income" | string; date: string };
-type BudgetRow = { id: number; category: string | null; limit: number };
 
-const norm = (s: string) => s.toLowerCase().trim();
+// ⚠️ Wir benutzen TEXT-basierte Kategorienamen
+type Transaction = {
+    id: string;
+    categoryName: string | null; // TEXT aus DB
+    amount: number;
+    type: "expense" | "income";
+    date: string;
+};
+
+type BudgetRow = { id: number; category: string | null; limit: number };
 
 export default function BudgetingClient({
                                             categories,
@@ -21,66 +31,76 @@ export default function BudgetingClient({
                                             budgets,
                                         }: {
     categories: Category[];
-    transactions: Transaction[];  // ⚠️ jetzt mit categoryName
-    budgets: BudgetRow[];         // category = TEXT | NULL
+    transactions: Transaction[];
+    budgets: BudgetRow[];
 }) {
     const router = useRouter();
-    const monthKey = getCurrentMonthKey();
-    const month = Number(String(monthKey).slice(4, 6));
-    const year = Number(String(monthKey).slice(0, 4));
+    const mKey = getCurrentMonthKey();
+    const month = Number(String(mKey).slice(4, 6));
+    const year = Number(String(mKey).slice(0, 4));
 
-    // Optimistischer State, damit neue Budgets sofort erscheinen
+    // --- State (optimistic) ---
     const [budgetsState, setBudgetsState] = React.useState<BudgetRow[]>(budgets);
 
-    // Ausgaben je **normalisiertem Kategorienamen**
-    const spentByName = React.useMemo(() => {
-        const m = new Map<string, number>();
-        transactions.forEach((t) => {
-            const isExpense =
-                (typeof t.type === "string" && t.type.toLowerCase() === "expense") || t.amount < 0;
-            if (!isExpense) return;
-            if (!t.categoryName) return;
-            const key = norm(t.categoryName);
-            m.set(key, (m.get(key) ?? 0) + Math.abs(t.amount));
-        });
-        return m;
-    }, [transactions]);
-
+    // Globales Monatsbudget (category=null)
     const monthlyBudget = React.useMemo(
         () => budgetsState.find((b) => b.category === null) ?? null,
-        [budgetsState]
+        [budgetsState],
     );
 
+    // Ausgaben pro Kategorie
+    const spentByCategory = React.useMemo(() => {
+        const map = new Map<string, number>();
+        transactions.forEach((t) => {
+            if (t.type !== "expense" || !t.categoryName) return;
+            map.set(t.categoryName, (map.get(t.categoryName) ?? 0) + Math.abs(t.amount));
+        });
+        return map;
+    }, [transactions]);
+
+    // Kategorie-Budgets (ohne globales)
     const categoryBudgets = React.useMemo(
         () => budgetsState.filter((b) => b.category !== null) as BudgetRow[],
-        [budgetsState]
+        [budgetsState],
     );
 
+    // Karten-Daten
     const budgetCards = React.useMemo(() => {
         return categoryBudgets.map((b) => {
             const catName = String(b.category);
-            const spent = spentByName.get(norm(catName)) ?? 0;
-            return { id: b.id, category: catName, limit: b.limit, spent };
+            const spent = spentByCategory.get(catName) ?? 0;
+            return {
+                id: String(b.id),
+                categoryName: catName,
+                limit: b.limit,
+                spent,
+            };
         });
-    }, [categoryBudgets, spentByName]);
+    }, [categoryBudgets, spentByCategory]);
 
+    // Totals
     const totals = React.useMemo(() => {
-        const spent = budgetCards.reduce((s, c) => s + c.spent, 0);
-        const sumOfCategoryBudgets = categoryBudgets.reduce((s, b) => s + b.limit, 0);
-        const limit = monthlyBudget?.limit ?? sumOfCategoryBudgets;
-        return { limit, spent };
-    }, [budgetCards, monthlyBudget, categoryBudgets]);
+        const spent = Array.from(spentByCategory.values()).reduce((s, v) => s + v, 0);
+        const limit =
+            monthlyBudget?.limit ??
+            categoryBudgets.reduce((s, b) => s + (Number(b.limit) || 0), 0);
+        const remaining = Math.max(0, limit - spent);
+        const pct = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
+        return { limit, spent, remaining, pct };
+    }, [spentByCategory, monthlyBudget, categoryBudgets]);
 
-    // Mutations
+    // ===== Mutations (Server Actions) =====
     async function updateCategoryBudgetLimit(id: number, limit: number) {
         const snapshot = budgetsState;
-        setBudgetsState((prev) => prev.map((b) => (b.id === id ? { ...b, limit } : b)));
+        setBudgetsState((prev) =>
+            prev.map((b) => (b.id === id ? { ...b, limit } : b)),
+        );
         try {
             await updateBudgetAction({ id: String(id), limitAmount: limit });
             router.refresh();
         } catch (e) {
             setBudgetsState(snapshot);
-            throw e;
+            console.error(e);
         }
     }
 
@@ -92,43 +112,62 @@ export default function BudgetingClient({
             router.refresh();
         } catch (e) {
             setBudgetsState(snapshot);
-            throw e;
+            console.error(e);
         }
     }
 
     async function createCategoryBudget(payload: { categoryName: string; limit: number }) {
-        const tempId = -Date.now();
-        setBudgetsState((prev) => [{ id: tempId, category: payload.categoryName, limit: payload.limit }, ...prev]);
+        const snapshot = budgetsState;
+        const tempId = Math.random();
+        setBudgetsState((prev) => [
+            ...prev,
+            { id: tempId, category: payload.categoryName, limit: payload.limit },
+        ]);
         try {
-            await createBudgetAction({ categoryName: payload.categoryName, limitAmount: payload.limit, month, year });
+            await createBudgetAction({
+                categoryName: payload.categoryName,
+                limitAmount: payload.limit,
+                month,
+                year,
+            });
             router.refresh();
         } catch (e) {
-            setBudgetsState((prev) => prev.filter((b) => b.id !== tempId));
-            throw e;
+            setBudgetsState(snapshot);
+            console.error(e);
         }
     }
 
     async function updateMonthlyBudgetLimit(limit: number) {
         const snapshot = budgetsState;
-        setBudgetsState((prev) => {
-            const existing = prev.find((b) => b.category === null);
-            if (existing) return prev.map((b) => (b.category === null ? { ...b, limit } : b));
-            return [{ id: -1, category: null, limit }, ...prev];
-        });
+        const hasGlobal = budgetsState.find((b) => b.category === null);
+        if (hasGlobal) {
+            setBudgetsState((prev) =>
+                prev.map((b) => (b.category === null ? { ...b, limit } : b)),
+            );
+        } else {
+            setBudgetsState((prev) => [...prev, { id: Math.random(), category: null, limit }]);
+        }
         try {
-            await upsertMonthlyBudgetAction({ limitAmount: limit, month, year });
+            await createBudgetAction({
+                categoryName: null,
+                limitAmount: limit,
+                month,
+                year,
+            });
             router.refresh();
         } catch (e) {
             setBudgetsState(snapshot);
-            throw e;
+            console.error(e);
         }
     }
 
+    // Gesperrte Kategorien (bereits Budget)
     const blockedCategoryNames = React.useMemo(
         () => categoryBudgets.map((b) => String(b.category!)),
-        [categoryBudgets]
+        [categoryBudgets],
     );
 
+    // === Render ===
     return (
         <div className="space-y-6">
             <MonthlyOverview
@@ -142,7 +181,7 @@ export default function BudgetingClient({
                 <CreateBudget
                     categories={categories}
                     blockedCategoryNames={blockedCategoryNames}
-                    onCreate={({ categoryName, limit }) => createCategoryBudget({ categoryName, limit })}
+                    onCreate={createCategoryBudget}
                 />
             </div>
 
@@ -150,7 +189,12 @@ export default function BudgetingClient({
                 {budgetCards.map((b) => (
                     <BudgetCard
                         key={b.id}
-                        budget={b}
+                        budget={{
+                            id: Number(b.id),
+                            category: b.categoryName ?? null,
+                            limit: b.limit,
+                            spent: b.spent,
+                        }}
                         onUpdateLimit={updateCategoryBudgetLimit}
                         onRemove={removeCategoryBudget}
                     />

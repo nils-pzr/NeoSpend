@@ -15,7 +15,7 @@ export default function CreateBudget({
                                          onCreate,
                                      }: {
     categories: Category[];
-    blockedCategoryNames?: string[]; // Kategorienamen mit bereits vorhandenem Budget
+    blockedCategoryNames?: string[]; // Kategorienamen, die bereits ein Budget haben
     onCreate: (payload: { categoryName: string; limit: number }) => void;
 }) {
     const [open, setOpen] = React.useState(false);
@@ -24,7 +24,7 @@ export default function CreateBudget({
 
     const available = React.useMemo(
         () => categories.filter((c) => !blockedCategoryNames.includes(c.name)),
-        [categories, blockedCategoryNames]
+        [categories, blockedCategoryNames],
     );
 
     function submit() {
@@ -66,7 +66,12 @@ export default function CreateBudget({
                     </select>
 
                     <Label htmlFor="budget-limit">Monthly limit (€)</Label>
-                    <Input id="budget-limit" inputMode="decimal" value={String(limit)} onChange={(e) => setLimit(Number(e.target.value))} />
+                    <Input
+                        id="budget-limit"
+                        inputMode="decimal"
+                        value={String(limit)}
+                        onChange={(e) => setLimit(Number(e.target.value))}
+                    />
 
                     <div className="flex justify-end gap-2 pt-2">
                         <Button variant="outline" onClick={() => setOpen(false)}>

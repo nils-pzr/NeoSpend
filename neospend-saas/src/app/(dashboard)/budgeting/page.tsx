@@ -5,16 +5,20 @@ import BudgetingClient from "./BudgetingClient";
 import { getCurrentMonthRange, getCurrentMonthKey } from "./utils";
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { initializeBudgetingSystem } from "./initBudgeting";
 
 export const metadata = { title: "Budgeting | NeoSpend" };
 
 export default async function Page() {
+    // Initialisiere das Budget-System (Carry-Over, Auto-Allocate, Reset Rules)
+    await initializeBudgetingSystem();
+
     const { start, end } = getCurrentMonthRange();
     const mKey = getCurrentMonthKey();
     const month = Number(String(mKey).slice(4, 6));
     const year = Number(String(mKey).slice(0, 4));
 
-    /** ✅ Supabase-Client mit richtigem Cookie-Handling */
+    // ✅ Supabase-Client (read-only Cookie Handling)
     const cookieStore = await cookies();
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,12 +27,6 @@ export default async function Page() {
             cookies: {
                 get(name: string) {
                     return cookieStore.get(name)?.value;
-                },
-                set(name: string, value: string, options: CookieOptions) {
-                    cookieStore.set({ name, value, ...options });
-                },
-                remove(name: string, options: CookieOptions) {
-                    cookieStore.set({ name, value: "", ...options, maxAge: 0 });
                 },
             },
         }

@@ -1,76 +1,82 @@
-// app/(dashboard)/dashboard/components/RecentTransactions.tsx
-import Link from "next/link";
-import {
-    Card,
-    CardContent,
-    CardFooter,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+"use client";
 
-type Tx = {
-    id: string;
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface Transaction {
+    id: number;
     title: string;
-    amount: number; // negative = expense, positive = income
-    date: string; // ISO or friendly
-};
-
-const demo: Tx[] = [
-    { id: "1", title: "Rewe Supermarkt", amount: -23.49, date: "2025-10-12" },
-    { id: "2", title: "Spotify", amount: -9.99, date: "2025-10-11" },
-    { id: "3", title: "Gehalt", amount: +1250, date: "2025-10-10" },
-];
-
-function currency(n: number) {
-    return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: "EUR",
-        minimumFractionDigits: 2,
-    }).format(n);
+    amount: number;
+    type: "income" | "expense";
+    date: string;
 }
 
-function cls(...xs: (string | false | undefined)[]) {
-    return xs.filter(Boolean).join(" ");
-}
+export default function RecentTransactions() {
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
 
-export default function RecentTransactions({ items = demo }: { items?: Tx[] }) {
+    useEffect(() => {
+        const fetchTransactions = async () => {
+            setLoading(true);
+            const user = (await supabase.auth.getUser()).data.user;
+            if (!user) return setLoading(false);
+
+            const { data } = await supabase
+                .from("transactions")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("date", { ascending: false })
+                .limit(5);
+
+            setTransactions(data || []);
+            setLoading(false);
+        };
+        fetchTransactions();
+    }, []);
+
+    const recent = useMemo(() => transactions.slice(0, 5), [transactions]);
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Recent Transactions</CardTitle>
+                <CardTitle>Letzte Transaktionen</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-                {items.map((t) => (
-                    <div
-                        key={t.id}
-                        className="flex items-center justify-between rounded-md border px-3 py-2"
-                    >
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{t.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {new Date(t.date).toLocaleDateString()}
-                            </p>
-                        </div>
+                {loading ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                        Lädt ...
+                    </p>
+                ) : recent.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                        Noch keine Transaktionen vorhanden.
+                    </p>
+                ) : (
+                    recent.map((t) => (
                         <div
-                            className={cls(
-                                "text-sm font-medium tabular-nums",
-                                t.amount >= 0
-                                    ? "text-emerald-600 dark:text-emerald-500"
-                                    : "text-rose-600 dark:text-rose-500"
-                            )}
+                            key={t.id}
+                            className="flex items-center justify-between rounded-md border px-3 py-2"
                         >
-                            {t.amount >= 0 ? "+" : "-"}
-                            {currency(Math.abs(t.amount))}
+                            <div>
+                                <p className="text-sm font-medium">{t.title}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {new Date(t.date).toLocaleDateString()}
+                                </p>
+                            </div>
+                            <div
+                                className={`text-sm font-medium tabular-nums ${
+                                    t.type === "income"
+                                        ? "text-emerald-600 dark:text-emerald-500"
+                                        : "text-rose-600 dark:text-rose-500"
+                                }`}
+                            >
+                                {t.type === "income" ? "+" : "-"}
+                                {t.amount.toFixed(2)} €
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))
+                )}
             </CardContent>
-            <CardFooter>
-                <Button asChild className="w-full">
-                    <Link href="/dashboard/transactions">View All</Link>
-                </Button>
-            </CardFooter>
         </Card>
     );
 }

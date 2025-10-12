@@ -20,7 +20,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { BarChart2, Settings2, Save, Pencil, X, RefreshCcw } from "lucide-react";
+import {
+    BarChart2,
+    Settings2,
+    Save,
+    Pencil,
+    X,
+    RefreshCcw,
+    RotateCw,
+} from "lucide-react";
 import Stat from "./Stat";
 import { formatCurrency } from "../utils";
 import {
@@ -36,6 +44,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+
+// 🧩 Neue Server-Action für Recalculate (statt initBudgeting Import)
+import { runMaintenanceAction } from "../actions/runMaintenanceAction";
 
 type Totals = {
     limit: number;
@@ -58,20 +69,18 @@ export default function MonthlyOverview({
         monthlyBudgetLimit ?? totals.limit
     );
 
-    // Settings states
+    // Settings
     const [carryOver, setCarryOver] = React.useState(false);
     const [autoAllocate, setAutoAllocate] = React.useState(false);
-    const [autoAllocateMode, setAutoAllocateMode] = React.useState<
-        "even" | "percentage"
-    >("even");
-    const [resetRule, setResetRule] = React.useState<
-        "zero" | "keep" | "average"
-    >("keep");
+    const [autoAllocateMode, setAutoAllocateMode] =
+        React.useState<"even" | "percentage">("even");
+    const [resetRule, setResetRule] =
+        React.useState<"zero" | "keep" | "average">("keep");
     const [loadingAction, setLoadingAction] = React.useState<string | null>(null);
 
     /* --------------------------
-         Sync Local States
-      -------------------------- */
+       Sync Local States
+    -------------------------- */
     React.useEffect(() => {
         setLimit(monthlyBudgetLimit ?? totals.limit);
     }, [monthlyBudgetLimit, totals.limit]);
@@ -91,15 +100,23 @@ export default function MonthlyOverview({
     }, []);
 
     /* --------------------------
-         Update Settings
-      -------------------------- */
+       Warnung bei 90 %
+    -------------------------- */
+    React.useEffect(() => {
+        if (totals.pct >= 90) {
+            toast.warning("⚠️ You’ve used over 90% of your total budget this month!");
+        }
+    }, [totals.pct]);
+
+    /* --------------------------
+       Settings-Funktionen
+    -------------------------- */
     async function toggleCarryOver(v: boolean) {
         setCarryOver(v);
         try {
             await updateCarryOverSetting(v);
             toast.success(v ? "Carry-over enabled" : "Carry-over disabled");
-        } catch (e) {
-            console.error(e);
+        } catch {
             toast.error("Failed to update carry-over");
             setCarryOver(!v);
         }
@@ -110,8 +127,7 @@ export default function MonthlyOverview({
         try {
             await updateAutoAllocateSetting(v);
             toast.success(v ? "Auto-allocate enabled" : "Auto-allocate disabled");
-        } catch (e) {
-            console.error(e);
+        } catch {
             toast.error("Failed to update auto-allocate");
             setAutoAllocate(!v);
         }
@@ -122,8 +138,7 @@ export default function MonthlyOverview({
         try {
             await updateAutoAllocateMode(v);
             toast.success(`Auto-allocate mode set to ${v}`);
-        } catch (e) {
-            console.error(e);
+        } catch {
             toast.error("Failed to update auto-allocate mode");
         }
     }
@@ -133,15 +148,11 @@ export default function MonthlyOverview({
         try {
             await updateResetRuleSetting(v);
             toast.success(`Reset rule set to ${v}`);
-        } catch (e) {
-            console.error(e);
+        } catch {
             toast.error("Failed to update reset rule");
         }
     }
 
-    /* --------------------------
-         APPLY NOW Buttons
-      -------------------------- */
     async function handleApply(action: "carry" | "allocate" | "reset") {
         try {
             setLoadingAction(action);
@@ -155,17 +166,32 @@ export default function MonthlyOverview({
                 await applyResetRules();
                 toast.success("Reset rules applied");
             }
-        } catch (e) {
-            console.error(e);
+        } catch {
             toast.error("Action failed");
         } finally {
             setLoadingAction(null);
         }
     }
 
+    async function handleFullRecalc() {
+        try {
+            setLoadingAction("full");
+            const result = await runMaintenanceAction();
+            if (result?.success) {
+                toast.success("Monthly budgets recalculated successfully");
+            } else {
+                toast.error(result?.error || "Failed to recalculate monthly budgets");
+            }
+        } catch {
+            toast.error("Failed to recalculate monthly budgets");
+        } finally {
+            setLoadingAction(null);
+        }
+    }
+
     /* --------------------------
-         Render Component
-      -------------------------- */
+       Render
+    -------------------------- */
     return (
         <Card className="border-border/60">
             <CardHeader className="pb-2">
@@ -202,7 +228,25 @@ export default function MonthlyOverview({
                     Tip: Keep a buffer for unexpected expenses.
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {/* 🧮 Recalculate Button */}
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={loadingAction === "full"}
+                        onClick={handleFullRecalc}
+                        className="flex items-center gap-2"
+                    >
+                        <RotateCw
+                            className={cn(
+                                "h-4 w-4",
+                                loadingAction === "full" && "animate-spin"
+                            )}
+                        />
+                        Recalculate Monthly Budgets
+                    </Button>
+
+                    {/* ✏️ Budget Edit */}
                     {editing ? (
                         <>
                             <Input
@@ -236,12 +280,12 @@ export default function MonthlyOverview({
                         </>
                     ) : (
                         <>
-              <span className="text-sm text-muted-foreground">
-                Monthly total:{" "}
-                  <strong>
-                  {formatCurrency(monthlyBudgetLimit ?? totals.limit)}
-                </strong>
-              </span>
+                            <span className="text-sm text-muted-foreground">
+                                Monthly total:{" "}
+                                <strong>
+                                    {formatCurrency(monthlyBudgetLimit ?? totals.limit)}
+                                </strong>
+                            </span>
                             <Button
                                 size="icon"
                                 variant="outline"
@@ -354,16 +398,20 @@ export default function MonthlyOverview({
                                         id="reset-rule"
                                         value={resetRule}
                                         onChange={(e) =>
-                                            changeResetRule(e.target.value as
-                                                | "zero"
-                                                | "keep"
-                                                | "average")
+                                            changeResetRule(
+                                                e.target.value as
+                                                    | "zero"
+                                                    | "keep"
+                                                    | "average"
+                                            )
                                         }
                                         className="border border-border rounded-md px-2 py-1 text-sm"
                                     >
                                         <option value="zero">Reset to zero</option>
                                         <option value="keep">Keep previous limit</option>
-                                        <option value="average">Average of last 3 months</option>
+                                        <option value="average">
+                                            Average of last 3 months
+                                        </option>
                                     </select>
                                 </div>
 

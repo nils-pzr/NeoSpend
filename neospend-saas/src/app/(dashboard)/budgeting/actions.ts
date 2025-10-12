@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 
 /* ===========================================================
    🔐 SUPABASE CLIENT
@@ -19,7 +19,7 @@ async function supabaseServer() {
                     return cookieStore.get(name)?.value;
                 },
             },
-        }
+        },
     );
 }
 
@@ -36,38 +36,32 @@ export async function createBudgetAction(input: {
     year: number;
 }) {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+        error: userErr,
+    } = await supabase.auth.getUser();
 
-    const base = supabase
-        .from("budgets")
-        .select("id")
-        .eq("year", input.year)
-        .eq("month", input.month)
-        .eq("user_id", authUser.user.id);
+    if (userErr || !user) throw new Error("Not authenticated");
 
-    const { data: existing, error: selErr } =
-        input.categoryName === null
-            ? await base.is("category", null).maybeSingle()
-            : await base.eq("category", input.categoryName).maybeSingle();
+    // ✅ Schutz gegen NaN / undefined
+    const validLimit =
+        typeof input.limitAmount === "number" && !isNaN(input.limitAmount)
+            ? input.limitAmount
+            : 0;
 
-    if (selErr && selErr.code !== "PGRST116") throw selErr;
-
-    if (existing) {
-        await supabase
-            .from("budgets")
-            .update({ limit: input.limitAmount })
-            .eq("id", existing.id);
-    } else {
-        await supabase.from("budgets").insert({
-            user_id: authUser.user.id,
+    // 🔹 Upsert mit constraint user_id+month+year+category
+    const { error } = await supabase.from("budgets").upsert(
+        {
+            user_id: user.id,
             category: input.categoryName,
-            limit: input.limitAmount,
+            limit: validLimit,
             month: input.month,
             year: input.year,
-        });
-    }
+        },
+        { onConflict: "user_id,month,year,category" },
+    );
 
+    if (error) throw new Error(error.message);
     revalidatePath(REVALIDATE_PATH);
 }
 
@@ -76,23 +70,42 @@ export async function updateBudgetAction(input: {
     limitAmount: number;
 }) {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    await supabase
+    if (!user) throw new Error("Not authenticated");
+
+    const validLimit =
+        typeof input.limitAmount === "number" && !isNaN(input.limitAmount)
+            ? input.limitAmount
+            : 0;
+
+    const { error } = await supabase
         .from("budgets")
-        .update({ limit: input.limitAmount })
-        .eq("id", input.id);
+        .update({ limit: validLimit })
+        .eq("id", input.id)
+        .eq("user_id", user.id);
 
+    if (error) throw new Error(error.message);
     revalidatePath(REVALIDATE_PATH);
 }
 
 export async function deleteBudgetAction(input: { id: string }) {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    await supabase.from("budgets").delete().eq("id", input.id);
+    if (!user) throw new Error("Not authenticated");
+
+    const { error } = await supabase
+        .from("budgets")
+        .delete()
+        .eq("id", input.id)
+        .eq("user_id", user.id);
+
+    if (error) throw new Error(error.message);
     revalidatePath(REVALIDATE_PATH);
 }
 
@@ -102,13 +115,16 @@ export async function deleteBudgetAction(input: { id: string }) {
 
 export async function getBudgetSettings() {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("Not authenticated");
 
     const { data } = await supabase
         .from("budgeting_settings")
         .select("*")
-        .eq("user_id", authUser.user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
     return data ?? {};
@@ -116,13 +132,16 @@ export async function getBudgetSettings() {
 
 export async function updateCarryOverSetting(enabled: boolean) {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("Not authenticated");
 
     const { data: existing } = await supabase
         .from("budgeting_settings")
         .select("user_id")
-        .eq("user_id", authUser.user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
     if (existing) {
@@ -132,10 +151,10 @@ export async function updateCarryOverSetting(enabled: boolean) {
                 carry_over_enabled: enabled,
                 updated_at: new Date().toISOString(),
             })
-            .eq("user_id", authUser.user.id);
+            .eq("user_id", user.id);
     } else {
         await supabase.from("budgeting_settings").insert({
-            user_id: authUser.user.id,
+            user_id: user.id,
             carry_over_enabled: enabled,
         });
     }
@@ -145,8 +164,11 @@ export async function updateCarryOverSetting(enabled: boolean) {
 
 export async function updateAutoAllocateSetting(enabled: boolean) {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("Not authenticated");
 
     await supabase
         .from("budgeting_settings")
@@ -154,15 +176,18 @@ export async function updateAutoAllocateSetting(enabled: boolean) {
             auto_allocate_enabled: enabled,
             updated_at: new Date().toISOString(),
         })
-        .eq("user_id", authUser.user.id);
+        .eq("user_id", user.id);
 
     revalidatePath(REVALIDATE_PATH);
 }
 
 export async function updateAutoAllocateMode(mode: "even" | "percentage") {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("Not authenticated");
 
     await supabase
         .from("budgeting_settings")
@@ -170,13 +195,16 @@ export async function updateAutoAllocateMode(mode: "even" | "percentage") {
             auto_allocate_mode: mode,
             updated_at: new Date().toISOString(),
         })
-        .eq("user_id", authUser.user.id);
+        .eq("user_id", user.id);
 }
 
 export async function updateResetRuleSetting(rule: "zero" | "keep" | "average") {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) throw new Error("Not authenticated");
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) throw new Error("Not authenticated");
 
     await supabase
         .from("budgeting_settings")
@@ -184,7 +212,7 @@ export async function updateResetRuleSetting(rule: "zero" | "keep" | "average") 
             reset_rule: rule,
             updated_at: new Date().toISOString(),
         })
-        .eq("user_id", authUser.user.id);
+        .eq("user_id", user.id);
 }
 
 /* ===========================================================
@@ -193,14 +221,16 @@ export async function updateResetRuleSetting(rule: "zero" | "keep" | "average") 
 
 export async function applyCarryOver() {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) return;
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    const userId = authUser.user.id;
+    if (!user) return;
+
+    const userId = user.id;
     const now = new Date();
     const lastMonth = now.getMonth() === 0 ? 12 : now.getMonth();
-    const lastYear =
-        now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const lastYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
 
     const { data: settings } = await supabase
         .from("budgeting_settings")
@@ -223,29 +253,16 @@ export async function applyCarryOver() {
         const remaining = Math.max(0, (b.limit ?? 0) - (b.spent ?? 0));
         if (remaining <= 0) continue;
 
-        const { data: existing } = await supabase
-            .from("budgets")
-            .select("id, limit")
-            .eq("user_id", userId)
-            .eq("year", now.getFullYear())
-            .eq("month", now.getMonth() + 1)
-            .eq("category", b.category)
-            .maybeSingle();
-
-        if (existing) {
-            await supabase
-                .from("budgets")
-                .update({ limit: existing.limit + remaining })
-                .eq("id", existing.id);
-        } else {
-            await supabase.from("budgets").insert({
+        await supabase.from("budgets").upsert(
+            {
                 user_id: userId,
                 category: b.category,
                 limit: remaining,
                 month: now.getMonth() + 1,
                 year: now.getFullYear(),
-            });
-        }
+            },
+            { onConflict: "user_id,month,year,category" },
+        );
     }
 
     await supabase
@@ -256,10 +273,13 @@ export async function applyCarryOver() {
 
 export async function applyAutoAllocate() {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) return;
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    const userId = authUser.user.id;
+    if (!user) return;
+
+    const userId = user.id;
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
@@ -327,10 +347,13 @@ export async function applyAutoAllocate() {
 
 export async function applyResetRules() {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) return;
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
 
-    const userId = authUser.user.id;
+    if (!user) return;
+
+    const userId = user.id;
     const now = new Date();
 
     const { data: settings } = await supabase
@@ -381,15 +404,18 @@ export async function runMonthlyMaintenance() {
 
 export async function getLastMaintenanceInfo() {
     const supabase = await supabaseServer();
-    const { data: authUser } = await supabase.auth.getUser();
-    if (!authUser?.user) return null;
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return null;
 
     const { data } = await supabase
         .from("budgeting_settings")
         .select(
-            "last_carryover_applied_at, last_auto_allocate_at, last_reset_rules_applied_at"
+            "last_carryover_applied_at, last_auto_allocate_at, last_reset_rules_applied_at",
         )
-        .eq("user_id", authUser.user.id)
+        .eq("user_id", user.id)
         .maybeSingle();
 
     return data ?? null;

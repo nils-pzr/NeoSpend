@@ -1,23 +1,19 @@
 "use client";
 
 import React from "react";
-import MonthlyOverview from "./components/MonthlyOverview";
-import BudgetCard from "./components/BudgetCard";
-import CreateBudget from "./components/CreateBudget";
-import { getCurrentMonthKey } from "./utils";
-import {
-    createBudgetAction,
-    updateBudgetAction,
-    deleteBudgetAction,
-} from "./actions";
+import MonthlyOverview from "./MonthlyOverview";
+import BudgetCard from "./BudgetCard";
+import CreateBudget from "./CreateBudget";
+import { getCurrentMonthKey } from "../utils";
+import { createBudgetAction, updateBudgetAction, deleteBudgetAction } from "../actions";
 import { useRouter } from "next/navigation";
+import BudgetCharts from "../BudgetCharts";
 
-type Category = { id: string; name: string };
+type Category = { id: string; name: string; color?: string };
 
-// ⚠️ Wir benutzen TEXT-basierte Kategorienamen
 type Transaction = {
     id: string;
-    categoryName: string | null; // TEXT aus DB
+    categoryName: string | null;
     amount: number;
     type: "expense" | "income";
     date: string;
@@ -39,16 +35,13 @@ export default function BudgetingClient({
     const month = Number(String(mKey).slice(4, 6));
     const year = Number(String(mKey).slice(0, 4));
 
-    // --- State (optimistic) ---
     const [budgetsState, setBudgetsState] = React.useState<BudgetRow[]>(budgets);
 
-    // Globales Monatsbudget (category=null)
     const monthlyBudget = React.useMemo(
         () => budgetsState.find((b) => b.category === null) ?? null,
-        [budgetsState],
+        [budgetsState]
     );
 
-    // Ausgaben pro Kategorie
     const spentByCategory = React.useMemo(() => {
         const map = new Map<string, number>();
         transactions.forEach((t) => {
@@ -58,43 +51,33 @@ export default function BudgetingClient({
         return map;
     }, [transactions]);
 
-    // Kategorie-Budgets (ohne globales)
     const categoryBudgets = React.useMemo(
         () => budgetsState.filter((b) => b.category !== null) as BudgetRow[],
-        [budgetsState],
+        [budgetsState]
     );
 
-    // Karten-Daten
-    const budgetCards = React.useMemo(() => {
-        return categoryBudgets.map((b) => {
-            const catName = String(b.category);
-            const spent = spentByCategory.get(catName) ?? 0;
-            return {
-                id: String(b.id),
-                categoryName: catName,
-                limit: b.limit,
-                spent,
-            };
-        });
-    }, [categoryBudgets, spentByCategory]);
+    const budgetCards = React.useMemo(
+        () =>
+            categoryBudgets.map((b) => {
+                const catName = String(b.category);
+                const spent = spentByCategory.get(catName) ?? 0;
+                return { id: String(b.id), categoryName: catName, limit: b.limit, spent };
+            }),
+        [categoryBudgets, spentByCategory]
+    );
 
-    // Totals
     const totals = React.useMemo(() => {
         const spent = Array.from(spentByCategory.values()).reduce((s, v) => s + v, 0);
         const limit =
-            monthlyBudget?.limit ??
-            categoryBudgets.reduce((s, b) => s + (Number(b.limit) || 0), 0);
+            monthlyBudget?.limit ?? categoryBudgets.reduce((s, b) => s + (Number(b.limit) || 0), 0);
         const remaining = Math.max(0, limit - spent);
         const pct = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0;
         return { limit, spent, remaining, pct };
     }, [spentByCategory, monthlyBudget, categoryBudgets]);
 
-    // ===== Mutations (Server Actions) =====
     async function updateCategoryBudgetLimit(id: number, limit: number) {
         const snapshot = budgetsState;
-        setBudgetsState((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, limit } : b)),
-        );
+        setBudgetsState((prev) => prev.map((b) => (b.id === id ? { ...b, limit } : b)));
         try {
             await updateBudgetAction({ id: String(id), limitAmount: limit });
             router.refresh();
@@ -119,10 +102,7 @@ export default function BudgetingClient({
     async function createCategoryBudget(payload: { categoryName: string; limit: number }) {
         const snapshot = budgetsState;
         const tempId = Math.random();
-        setBudgetsState((prev) => [
-            ...prev,
-            { id: tempId, category: payload.categoryName, limit: payload.limit },
-        ]);
+        setBudgetsState((prev) => [...prev, { id: tempId, category: payload.categoryName, limit: payload.limit }]);
         try {
             await createBudgetAction({
                 categoryName: payload.categoryName,
@@ -141,19 +121,12 @@ export default function BudgetingClient({
         const snapshot = budgetsState;
         const hasGlobal = budgetsState.find((b) => b.category === null);
         if (hasGlobal) {
-            setBudgetsState((prev) =>
-                prev.map((b) => (b.category === null ? { ...b, limit } : b)),
-            );
+            setBudgetsState((prev) => prev.map((b) => (b.category === null ? { ...b, limit } : b)));
         } else {
             setBudgetsState((prev) => [...prev, { id: Math.random(), category: null, limit }]);
         }
         try {
-            await createBudgetAction({
-                categoryName: null,
-                limitAmount: limit,
-                month,
-                year,
-            });
+            await createBudgetAction({ categoryName: null, limitAmount: limit, month, year });
             router.refresh();
         } catch (e) {
             setBudgetsState(snapshot);
@@ -161,13 +134,11 @@ export default function BudgetingClient({
         }
     }
 
-    // Gesperrte Kategorien (bereits Budget)
     const blockedCategoryNames = React.useMemo(
         () => categoryBudgets.map((b) => String(b.category!)),
-        [categoryBudgets],
+        [categoryBudgets]
     );
 
-    // === Render ===
     return (
         <div className="space-y-6">
             <MonthlyOverview
@@ -189,17 +160,15 @@ export default function BudgetingClient({
                 {budgetCards.map((b) => (
                     <BudgetCard
                         key={b.id}
-                        budget={{
-                            id: Number(b.id),
-                            category: b.categoryName ?? null,
-                            limit: b.limit,
-                            spent: b.spent,
-                        }}
+                        budget={{ id: Number(b.id), category: b.categoryName ?? null, limit: b.limit, spent: b.spent }}
                         onUpdateLimit={updateCategoryBudgetLimit}
                         onRemove={removeCategoryBudget}
                     />
                 ))}
             </div>
+
+            {/* Charts unterhalb der Budgets */}
+            <BudgetCharts totals={totals} transactions={transactions} categories={categories} />
         </div>
     );
 }

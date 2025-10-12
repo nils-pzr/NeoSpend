@@ -1,24 +1,31 @@
 // src/app/(dashboard)/budgeting/page.tsx
 import React from "react";
 import Header from "./components/Header";
-import BudgetingClient from "./BudgetingClient";
+import BudgetingClient from "./components/BudgetingClient";
 import { getCurrentMonthRange, getCurrentMonthKey } from "./utils";
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { initializeBudgetingSystem } from "./initBudgeting";
 
 export const metadata = { title: "Budgeting | NeoSpend" };
 
 export default async function Page() {
-    // Initialisiere das Budget-System (Carry-Over, Auto-Allocate, Reset Rules)
-    await initializeBudgetingSystem();
+    // ⚙️ Initialisierung nur am Monatsanfang (z. B. 1. Tag im Monat)
+    const today = new Date();
+    if (today.getDate() === 1) {
+        try {
+            await initializeBudgetingSystem();
+        } catch (err) {
+            console.error("⚠️ Budget init skipped or failed:", err);
+        }
+    }
 
     const { start, end } = getCurrentMonthRange();
     const mKey = getCurrentMonthKey();
     const month = Number(String(mKey).slice(4, 6));
     const year = Number(String(mKey).slice(0, 4));
 
-    // ✅ Supabase-Client (read-only Cookie Handling)
+    // 🧩 Supabase-Client
     const cookieStore = await cookies();
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,25 +39,35 @@ export default async function Page() {
         }
     );
 
-    // 🔹 Kategorien laden
+    // 🧠 Hole eingeloggten User
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const userId = user.id;
+
+    // 🔹 Kategorien laden (mit Farbe)
     const { data: categoriesData } = await supabase
         .from("categories")
-        .select("id, name")
+        .select("id, name, color")
         .order("name", { ascending: true });
 
     const categories =
         (categoriesData ?? []).map((c: any) => ({
             id: String(c.id),
             name: String(c.name),
-        })) as { id: string; name: string }[];
+            color: c.color ? String(c.color) : undefined,
+        })) ?? [];
 
-    // 🔹 Transaktionen (aktueller Monat)
+    // 🔹 Transaktionen des Monats (nur für den User)
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
 
     const { data: txData } = await supabase
         .from("transactions")
         .select("id, category, amount, type, date")
+        .eq("user_id", userId)
         .gte("date", startStr)
         .lte("date", endStr);
 
@@ -61,18 +78,13 @@ export default async function Page() {
             amount: Number(t.amount),
             type: (t.type ?? "expense") as "expense" | "income",
             date: String(t.date),
-        })) as {
-            id: string;
-            categoryName: string | null;
-            amount: number;
-            type: "expense" | "income";
-            date: string;
-        }[];
+        })) ?? [];
 
-    // 🔹 Budgets (aktueller Monat)
+    // 🔹 Budgets des Monats (nur für den User)
     const { data: budgetsData } = await supabase
         .from("budgets")
         .select("id, category, limit, month, year")
+        .eq("user_id", userId)
         .eq("year", year)
         .eq("month", month);
 
@@ -81,9 +93,8 @@ export default async function Page() {
             id: Number(b.id),
             category: b.category === null ? null : String(b.category),
             limit: Number(b.limit),
-        })) as { id: number; category: string | null; limit: number }[];
+        })) ?? [];
 
-    // 🔹 Render
     return (
         <div className="container max-w-6xl mx-auto p-4 md:p-6 space-y-6">
             <Header />

@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     ResponsiveContainer,
     LineChart,
@@ -13,191 +11,345 @@ import {
     Tooltip,
     CartesianGrid,
 } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { motion } from "framer-motion";
 
-type TrendPoint = { month: string; income: number; expense: number; net: number };
+interface Transaction {
+    amount: number;
+    type: "income" | "expense";
+    date: string;
+    user_id: string;
+}
+
+interface MonthlyData {
+    month: string;
+    income: number;
+    expense: number;
+    prev_income?: number;
+    prev_expense?: number;
+}
 
 export default function DashboardChart() {
-    const [data, setData] = useState<TrendPoint[]>([]);
+    const [data, setData] = useState<MonthlyData[]>([]);
     const [loading, setLoading] = useState(true);
-    const [primaryColor, setPrimaryColor] = useState("#7546E8"); // fallback
-    const { theme } = useTheme();
-
-    useEffect(() => {
-        // ✅ CSS Variable korrekt auflösen
-        const root = document.documentElement;
-        const color = getComputedStyle(root).getPropertyValue("--primary").trim();
-        if (color) setPrimaryColor(`hsl(${color})`);
-    }, [theme]);
+    const [smooth, setSmooth] = useState(true);
+    const [selectedRange, setSelectedRange] = useState("6m");
+    const [showIncome, setShowIncome] = useState(true);
+    const [showExpense, setShowExpense] = useState(true);
+    const [showPrevYear, setShowPrevYear] = useState(true);
+    const [summary, setSummary] = useState<string>("");
 
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
-            const {
-                data: { user },
-            } = await supabase.auth.getUser();
-            if (!user) {
-                setLoading(false);
-                return;
-            }
+            const user = (await supabase.auth.getUser()).data.user;
+            if (!user) return;
 
             const { data: tx, error } = await supabase
                 .from("transactions")
-                .select("amount, type, date")
+                .select("amount, type, date, user_id")
                 .eq("user_id", user.id);
 
-            if (error) {
+            if (error || !tx) {
                 console.error(error);
                 setLoading(false);
                 return;
             }
 
-            // === Gruppieren nach Monat ===
+            // === Gruppiere nach Jahr + Monat ===
             const grouped: Record<
                 string,
-                { income: number; expense: number; date: Date }
+                { income: number; expense: number }
             > = {};
 
-            tx?.forEach((t) => {
-                const d = new Date(t.date);
-                const key = `${d.getFullYear()}-${d.getMonth()}`;
-                if (!grouped[key]) grouped[key] = { income: 0, expense: 0, date: d };
+            tx.forEach((t) => {
+                const date = new Date(t.date);
+                const key = `${date.getFullYear()}-${String(
+                    date.getMonth() + 1
+                ).padStart(2, "0")}`;
+                if (!grouped[key]) grouped[key] = { income: 0, expense: 0 };
                 if (t.type === "income") grouped[key].income += Number(t.amount);
-                if (t.type === "expense") grouped[key].expense += Number(t.amount);
+                else grouped[key].expense += Number(t.amount);
             });
 
-            // === Array umwandeln + chronologisch sortieren ===
-            let cumulative = 0;
-            const monthly = Object.values(grouped)
-                .sort((a, b) => a.date.getTime() - b.date.getTime()) // alt → neu
-                .map((m) => {
-                    cumulative += m.income - m.expense;
-                    return {
-                        month: m.date.toLocaleString("de-DE", { month: "short" }),
-                        income: m.income,
-                        expense: m.expense,
-                        net: cumulative,
-                    };
-                });
+            // === Baue Datensätze ===
+            const months = Object.entries(grouped)
+                .map(([month, vals]) => ({
+                    month,
+                    income: vals.income,
+                    expense: vals.expense,
+                }))
+                .sort((a, b) => a.month.localeCompare(b.month));
 
-            setData(monthly);
+            // === Vorjahresdaten ermitteln ===
+            const prevYearData = months.map((m) => {
+                const [year, mm] = m.month.split("-");
+                const prevKey = `${Number(year) - 1}-${mm}`;
+                const prevVals = grouped[prevKey];
+                return {
+                    ...m,
+                    prev_income: prevVals?.income ?? 0,
+                    prev_expense: prevVals?.expense ?? 0,
+                };
+            });
+
+            // === Zeitraum-Filter ===
+            const now = new Date();
+            let filtered = prevYearData;
+            if (selectedRange === "6m") {
+                const sixMonthsAgo = new Date(now);
+                sixMonthsAgo.setMonth(now.getMonth() - 6);
+                filtered = prevYearData.filter(
+                    (m) => new Date(m.month + "-01") >= sixMonthsAgo
+                );
+            } else if (selectedRange === "12m") {
+                const twelveMonthsAgo = new Date(now);
+                twelveMonthsAgo.setFullYear(now.getFullYear() - 1);
+                filtered = prevYearData.filter(
+                    (m) => new Date(m.month + "-01") >= twelveMonthsAgo
+                );
+            }
+
+            // === Summary ===
+            const currentYear = now.getFullYear();
+            const lastYear = currentYear - 1;
+            const currentExpense = tx
+                .filter(
+                    (t) =>
+                        t.type === "expense" &&
+                        new Date(t.date).getFullYear() === currentYear
+                )
+                .reduce((a, b) => a + Number(b.amount), 0);
+            const prevExpense = tx
+                .filter(
+                    (t) =>
+                        t.type === "expense" &&
+                        new Date(t.date).getFullYear() === lastYear
+                )
+                .reduce((a, b) => a + Number(b.amount), 0);
+
+            const diff =
+                prevExpense > 0
+                    ? ((currentExpense - prevExpense) / prevExpense) * 100
+                    : 0;
+
+            let summaryText = "";
+            if (diff < 0)
+                summaryText = `🧠 Du gibst ${Math.abs(diff).toFixed(
+                    1
+                )}% weniger aus als im Vorjahreszeitraum.`;
+            else if (diff > 0)
+                summaryText = `🧠 Du gibst ${Math.abs(diff).toFixed(
+                    1
+                )}% mehr aus als im Vorjahreszeitraum.`;
+            else summaryText = `🧠 Deine Ausgaben sind gleich geblieben.`;
+
+            setSummary(summaryText);
+            setData(filtered);
             setLoading(false);
         };
 
         fetchData();
-    }, []);
+    }, [selectedRange]);
 
-    const isDark = theme === "dark";
-    const textColor = isDark ? "#E5E5E5" : "#111111";
-    const gridColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)";
-    const tooltipBg = isDark ? "rgba(17,17,17,0.95)" : "#ffffff";
-    const tooltipBorder = isDark ? "rgba(255,255,255,0.15)" : "#e5e5e5";
+    const monthsShort = [
+        "Jan",
+        "Feb",
+        "Mär",
+        "Apr",
+        "Mai",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Okt",
+        "Nov",
+        "Dez",
+    ];
+
+    const chartData = useMemo(
+        () =>
+            data.map((d) => ({
+                ...d,
+                label: `${monthsShort[Number(d.month.split("-")[1]) - 1]}`,
+            })),
+        [data]
+    );
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Monatsübersicht</CardTitle>
             </CardHeader>
-            <CardContent className="h-64">
-                {loading ? (
-                    <div className="h-full w-full animate-pulse rounded-md border border-dashed" />
-                ) : data.length === 0 ? (
-                    <div className="h-full grid place-items-center text-sm text-muted-foreground">
-                        Keine Daten vorhanden
-                    </div>
-                ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                            data={data}
-                            margin={{ left: 12, right: 12, top: 8, bottom: 8 }}
+            <CardContent className="space-y-4">
+                {/* === Header Controls === */}
+                <div className="flex flex-wrap items-center gap-3 justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                        <label className="text-muted-foreground font-medium">Zeitraum</label>
+                        <select
+                            value={selectedRange}
+                            onChange={(e) => setSelectedRange(e.target.value)}
+                            className="rounded-md border border-border bg-background px-3 py-2 text-sm font-medium
+                         focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-0
+                         focus-visible:ring-[var(--primary)]"
                         >
-                            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-                            <XAxis dataKey="month" tick={{ fill: textColor }} stroke={textColor} />
-                            <YAxis
-                                tick={{ fill: textColor }}
-                                stroke={textColor}
-                                tickFormatter={(v) =>
-                                    Intl.NumberFormat(undefined, { notation: "compact" }).format(v)
-                                }
+                            <option value="6m">Letztes Halbjahr</option>
+                            <option value="12m">Letztes Jahr</option>
+                            <option value="24m">2 Jahre</option>
+                            <option value="ytd">Dieses Jahr</option>
+                        </select>
+
+                        <label className="text-muted-foreground font-medium flex items-center gap-2">
+                            Glättung
+                            <input
+                                type="checkbox"
+                                checked={smooth}
+                                onChange={() => setSmooth((p) => !p)}
+                                className="accent-[var(--primary)] cursor-pointer"
                             />
-                            <Tooltip
-                                formatter={(v: number, name: string) =>
-                                    [
-                                        new Intl.NumberFormat(undefined, {
+                        </label>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={() => setShowIncome((v) => !v)}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all shadow-sm ${
+                                showIncome
+                                    ? "bg-[var(--primary)] text-white"
+                                    : "bg-muted text-foreground"
+                            }`}
+                        >
+                            🟩 Income
+                        </button>
+                        <button
+                            onClick={() => setShowExpense((v) => !v)}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all shadow-sm ${
+                                showExpense
+                                    ? "bg-[var(--primary)] text-white"
+                                    : "bg-muted text-foreground"
+                            }`}
+                        >
+                            🟥 Expense
+                        </button>
+                        <button
+                            onClick={() => setShowPrevYear((v) => !v)}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all shadow-sm ${
+                                showPrevYear
+                                    ? "bg-[var(--primary)] text-white"
+                                    : "bg-muted text-foreground"
+                            }`}
+                        >
+                            📈 Vorjahr
+                        </button>
+                    </div>
+                </div>
+
+                {/* === Chart === */}
+                <div className="h-72 w-full">
+                    {loading ? (
+                        <div className="h-full w-full animate-pulse rounded-md border border-dashed" />
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#ccc" />
+                                <XAxis dataKey="label" tickMargin={8} />
+                                <YAxis tickMargin={8} />
+                                <Tooltip
+                                    formatter={(v: number, name: string) => [
+                                        new Intl.NumberFormat("de-DE", {
                                             style: "currency",
                                             currency: "EUR",
                                         }).format(v),
-                                        name === "net"
-                                            ? "Kumuliert"
-                                            : name === "income"
-                                                ? "Einnahmen"
-                                                : "Ausgaben",
-                                    ]
-                                }
-                                labelFormatter={(l) => `Monat: ${l}`}
-                                contentStyle={{
-                                    backgroundColor: tooltipBg,
-                                    border: `1px solid ${tooltipBorder}`,
-                                    borderRadius: "8px",
-                                    color: textColor,
-                                    backdropFilter: "blur(4px)",
-                                    fontWeight: 500,
-                                    padding: "8px 12px",
-                                }}
-                                labelStyle={{
-                                    color: textColor,
-                                    fontWeight: 600,
-                                }}
-                                itemStyle={{
-                                    color: textColor,
-                                }}
-                            />
-                            {/* 🟩 Income */}
-                            <Line
-                                type="monotone"
-                                dataKey="income"
-                                strokeWidth={2}
-                                stroke="#22c55e" // Tailwind green-500
-                                dot={false}
-                                activeDot={{
-                                    r: 5,
-                                    stroke: "#22c55e",
-                                    strokeWidth: 2,
-                                }}
-                            />
-                            {/* 🟥 Expense */}
-                            <Line
-                                type="monotone"
-                                dataKey="expense"
-                                strokeWidth={2}
-                                stroke="#ef4444" // Tailwind red-500
-                                dot={false}
-                                activeDot={{
-                                    r: 5,
-                                    stroke: "#ef4444",
-                                    strokeWidth: 2,
-                                }}
-                            />
-                            {/* 💜 Net cumulative */}
-                            <Line
-                                type="monotone"
-                                dataKey="net"
-                                strokeWidth={2.5}
-                                stroke={primaryColor}
-                                dot={{
-                                    r: 3.5,
-                                    fill: primaryColor,
-                                    stroke: isDark ? "#1a1a1a" : "#ffffff",
-                                    strokeWidth: 1.5,
-                                }}
-                                activeDot={{
-                                    r: 6,
-                                    strokeWidth: 2,
-                                    stroke: primaryColor,
-                                }}
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
-                )}
+                                        name === "income"
+                                            ? "Einnahmen"
+                                            : name === "expense"
+                                                ? "Ausgaben"
+                                                : name === "prev_income"
+                                                    ? "Einnahmen (Vorjahr)"
+                                                    : name === "prev_expense"
+                                                        ? "Ausgaben (Vorjahr)"
+                                                        : "",
+                                    ]}
+                                    labelFormatter={(l) => `Monat: ${l}`}
+                                    contentStyle={{
+                                        backgroundColor: "#ffffff",
+                                        border: "1px solid #e5e5e5",
+                                        borderRadius: "12px",
+                                        color: "#111111",
+                                        boxShadow: "0 2px 10px rgba(0,0,0,0.08)",
+                                        padding: "10px 14px",
+                                        fontWeight: 500,
+                                    }}
+                                    labelStyle={{
+                                        color: "#111111",
+                                        fontWeight: 600,
+                                        marginBottom: 4,
+                                    }}
+                                    itemStyle={{
+                                        color: "#111111",
+                                        fontSize: "0.875rem",
+                                        lineHeight: 1.5,
+                                    }}
+                                />
+
+                                {showIncome && (
+                                    <Line
+                                        type={smooth ? "monotone" : "linear"}
+                                        dataKey="income"
+                                        stroke="#16a34a"
+                                        strokeWidth={2.5}
+                                        dot={false}
+                                    />
+                                )}
+                                {showExpense && (
+                                    <Line
+                                        type={smooth ? "monotone" : "linear"}
+                                        dataKey="expense"
+                                        stroke="#dc2626"
+                                        strokeWidth={2.5}
+                                        dot={false}
+                                    />
+                                )}
+                                {showPrevYear && (
+                                    <>
+                                        <Line
+                                            type="monotone"
+                                            dataKey="prev_income"
+                                            stroke="#16a34a"
+                                            strokeDasharray="5 5"
+                                            strokeWidth={1.5}
+                                            dot={false}
+                                        />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="prev_expense"
+                                            stroke="#dc2626"
+                                            strokeDasharray="5 5"
+                                            strokeWidth={1.5}
+                                            dot={false}
+                                        />
+                                    </>
+                                )}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
+
+                {/* === AI Summary === */}
+                <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4 }}
+                    className={`text-center text-sm font-medium ${
+                        summary.includes("mehr")
+                            ? "text-red-500"
+                            : summary.includes("weniger")
+                                ? "text-green-500"
+                                : "text-muted-foreground"
+                    }`}
+                >
+                    {summary}
+                </motion.p>
             </CardContent>
         </Card>
     );
